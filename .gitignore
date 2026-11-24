@@ -1,0 +1,41 @@
+# ==============================================================================
+# NEXORA - Git Ignore Configuration
+# ==============================================================================
+
+# Compiled Java Bytecode
+bin/
+*.class
+
+# Temporary and Test Artefacts
+tests/*.log
+*.log
+temp/
+tmp/
+
+# Environment Variables & Secrets (CRITICAL)
+.env
+.env.*
+*.key
+*.pem
+*.secret
+
+# IDE & Editor Configurations
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+.settings/
+.classpath
+.project
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Backup & Legacy Safeguards
+Personal-AI-Chatbot-PHP-Backup/
+data/
+
+# OS / Crash Dumps
+hs_err_pid*.log
+replay_pid*.log

@@ -1,0 +1,27 @@
+# ==============================================================================
+# Render.com Blueprint (Infrastructure-as-Code)
+# Service: NEXORA AI Chatbot (Docker Web Service - Free Tier)
+# ==============================================================================
+
+services:
+  - type: web
+    name: nexora-ai
+    env: docker
+    plan: free
+    region: oregon # or frankfurt, singapore, ohio
+    dockerfilePath: Dockerfile
+    autoDeploy: true
+    healthCheckPath: /api/health
+    envVars:
+      - key: APP_MODE
+        value: PUBLIC
+      - key: OPENROUTER_API_KEY
+        sync: false # Set securely in Render dashboard
+      - key: OPENROUTER_DEFAULT_MODEL
+        value: meta-llama/llama-3.2-3b-instruct:free
+      - key: RATE_LIMIT_PER_MINUTE
+        value: "30"
+      - key: MAX_REQUEST_SIZE_BYTES
+        value: "1048576"
+      - key: REQUEST_TIMEOUT_SECONDS
+        value: "180"

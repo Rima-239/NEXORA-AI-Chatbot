@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="NEXORA – Your Private AI Companion. Think Smarter. Create Freely. Stay Private. High-performance AI chatbot powered by Core Java 21 and Ollama.">
+    <meta name="theme-color" content="#07090e">
+    <title>NEXORA – Your Private AI Companion</title>
+
+    <!-- PWA Web App Manifest & Favicon -->
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+    <link rel="apple-touch-icon" href="/assets/icon.svg">
+
+    <!-- Google Fonts for English, Bengali & Code Blocks -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- NEXORA Modular Stylesheet -->
+    <link rel="stylesheet" href="/css/nexora.css">
+</head>
+<body>
+
+<div class="app-container">
+
+    <!-- Mobile Drawer Backdrop Overlay -->
+    <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="toggleSidebar(false)"></div>
+
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar" id="sidebar">
+        <!-- Brand Header -->
+        <div class="sidebar-brand">
+            <a href="/" class="brand-link">
+                <div class="brand-logo-icon">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2a8 8 0 0 0-8 8c0 4.418 5 12 8 12s8-7.582 8-12a8 8 0 0 0-8-8z"></path>
+                        <circle cx="12" cy="10" r="3"></circle>
+                    </svg>
+                </div>
+                <div class="brand-titles">
+                    <span class="brand-name">NEXORA</span>
+                    <span class="brand-tagline">Private AI Companion</span>
+                </div>
+            </a>
+            <button class="sidebar-close-btn" onclick="toggleSidebar(false)" title="Close Sidebar">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Sidebar Actions -->
+        <div class="sidebar-action-bar">
+            <!-- New Chat Button -->
+            <button class="btn-new-chat" onclick="createNewChat(true)">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                New Chat
+            </button>
+
+            <!-- Search Filter Bar -->
+            <div class="search-box-wrapper">
+                <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input
+                    type="text"
+                    id="searchFilterInput"
+                    class="search-input"
+                    placeholder="Search conversations..."
+                    autocomplete="off"
+                >
+                <button id="searchClearBtn" class="search-clear-btn" onclick="clearSearch()" title="Clear search">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Conversation History List -->
+        <div class="history-section-header">
+            <span>Conversations</span>
+        </div>
+        <div class="history-list" id="historyList">
+            <!-- Dynamically populated from localStorage -->
+        </div>
+
+        <!-- Sidebar Footer -->
+        <div class="sidebar-footer">
+            <div class="sidebar-footer-row">
+                <button class="btn-sidebar-settings" onclick="openSettingsModal()">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    </svg>
+                    Settings
+                </button>
+
+                <!-- Theme Switcher Pills -->
+                <div class="theme-switch-pills">
+                    <button class="theme-pill-btn active" data-theme-val="dark" onclick="setTheme('dark')" title="Dark Theme">🌙</button>
+                    <button class="theme-pill-btn" data-theme-val="light" onclick="setTheme('light')" title="Light Theme">☀️</button>
+                    <button class="theme-pill-btn" data-theme-val="system" onclick="setTheme('system')" title="System Theme">💻</button>
+                </div>
+            </div>
+
+            <!-- Optional PWA Install Action -->
+            <button id="btnInstallPwa" class="btn-sidebar-settings" style="display:none; width:100%; justify-content:center; color:var(--accent-cyan); border-color:rgba(6, 182, 212, 0.3);" onclick="promptPwaInstall()">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                Install NEXORA App
+            </button>
+
+            <!-- System Status -->
+            <div class="system-status-indicator">
+                <span class="status-pulse-dot" id="statusPulseDot"></span>
+                <span id="systemStatusText">Ollama (Local) · Core Java 21</span>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Chat Workspace -->
+    <main class="chat-main">
+        <!-- Top Navigation Header -->
+        <header class="chat-header">
+            <div class="chat-header-left">
+                <button class="hamburger-btn" onclick="toggleSidebar(true)" title="Open Sidebar">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                </button>
+
+                <div class="chat-title-group">
+                    <div class="chat-title-wrapper">
+                        <span class="chat-active-title" id="chatActiveTitle">New Conversation</span>
+                        <button class="btn-rename-chat" onclick="renameChatPrompt(state.activeChatId)" title="Rename Conversation">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 20h9"></path>
+                                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <span class="chat-status-subtitle">
+                        <span id="headerModelPill">qwen2.5:7b</span> · Mode: <strong id="chatPersonaBadge">General</strong>
+                    </span>
+                </div>
+            </div>
+
+            <!-- Header Right Controls -->
+            <div class="chat-header-right">
+                <!-- Persona Switcher Pills in Header -->
+                <div class="persona-pills-container">
+                    <button class="persona-pill-btn active" data-persona="general" onclick="setPersona('general')" title="General Assistant">⚡ General</button>
+                    <button class="persona-pill-btn" data-persona="coding" onclick="setPersona('coding')" title="Coding Assistant">💻 Coding</button>
+                    <button class="persona-pill-btn" data-persona="writing" onclick="setPersona('writing')" title="Writing Assistant">✍️ Writing</button>
+                    <button class="persona-pill-btn" data-persona="learning" onclick="setPersona('learning')" title="Learning Assistant">🎓 Learning</button>
+                </div>
+
+                <!-- Export Action -->
+                <button class="header-action-btn" onclick="exportCurrentConversation('txt')" title="Export conversation as text file">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    Export
+                </button>
+
+                <!-- Clear Chat Action -->
+                <button class="header-action-btn" onclick="clearCurrentChat()" title="Clear this chat">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 6h18"></path>
+                        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                    </svg>
+                    Clear
+                </button>
+            </div>
+        </header>
+
+        <!-- Messages Thread -->
+        <div class="messages-scroll-area" id="messagesContainer">
+            <!-- Messages or Welcome Hero injected here -->
+        </div>
+
+        <!-- Message Composer -->
+        <section class="composer-section">
+            <div class="composer-container">
+                <!-- Quick Actions Chips Row -->
+                <div class="composer-chips-row">
+                    <button class="composer-chip-btn" onclick="handleQuickAction('explain')">💡 Explain</button>
+                    <button class="composer-chip-btn" onclick="handleQuickAction('summarize')">📝 Summarize</button>
+                    <button class="composer-chip-btn" onclick="handleQuickAction('translate')">🌐 Translate (বাংলা ⇄ EN)</button>
+                    <button class="composer-chip-btn" onclick="handleQuickAction('improve')">✨ Improve Writing</button>
+                </div>
+
+                <!-- Input Floating Card -->
+                <div class="composer-input-card">
+                    <textarea
+                        id="composerTextarea"
+                        class="composer-textarea"
+                        placeholder="Ask NEXORA in English or Bengali... (Enter to send, Shift+Enter for new line)"
+                        rows="1"
+                    ></textarea>
+
+                    <button id="btnSendMessage" class="btn-send-message" onclick="handleSendMessage()" title="Send Message (Enter)">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="22" y1="2" x2="11" y2="13"></line>
+                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="composer-footer-note">
+                    <span>NEXORA 1.0</span>
+                    <span>•</span>
+                    <span>Core Java 21 Engine</span>
+                    <span>•</span>
+                    <span>Local & Private Storage</span>
+                </div>
+            </div>
+        </section>
+    </main>
+
+</div>
+
+<!-- Settings & Privacy Modal -->
+<div class="modal-backdrop" id="settingsModal">
+    <div class="modal-card">
+        <div class="modal-header">
+            <div class="modal-title">NEXORA Settings & Privacy</div>
+            <button class="modal-close-btn" onclick="closeSettingsModal()" title="Close">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+
+        <div class="modal-body">
+            <!-- Theme Settings -->
+            <div class="setting-group">
+                <div class="setting-label">Appearance & Theme</div>
+                <div class="setting-desc">Choose your preferred visual theme. System mode automatically matches your device OS.</div>
+                <div class="theme-options-grid">
+                    <div class="theme-card-option" data-theme-val="dark" onclick="setTheme('dark')">
+                        <span style="font-size:20px;">🌙</span>
+                        <span style="font-size:12px; font-weight:600;">Dark</span>
+                    </div>
+                    <div class="theme-card-option" data-theme-val="light" onclick="setTheme('light')">
+                        <span style="font-size:20px;">☀️</span>
+                        <span style="font-size:12px; font-weight:600;">Light</span>
+                    </div>
+                    <div class="theme-card-option" data-theme-val="system" onclick="setTheme('system')">
+                        <span style="font-size:20px;">💻</span>
+                        <span style="font-size:12px; font-weight:600;">System</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI Engine & Provider Status -->
+            <div class="setting-group">
+                <div class="setting-label">AI Engine & Backend Mode</div>
+                <div class="setting-desc">Active configuration detected from Core Java 21 server:</div>
+                <div style="background:var(--bg-base); padding:12px; border-radius:var(--radius-md); border:1px solid var(--border-subtle); font-size:12.5px; display:flex; flex-direction:column; gap:6px;">
+                    <div><strong>Operating Mode:</strong> <span id="settingsAppMode" style="color:var(--accent-cyan);">LOCAL</span></div>
+                    <div><strong>AI Provider:</strong> <span id="settingsProvider">Ollama (Local)</span></div>
+                    <div><strong>Local Endpoint:</strong> <code>http://127.0.0.1:11434</code></div>
+                    <div><strong>Default Model:</strong> <code>qwen2.5:7b</code></div>
+                </div>
+            </div>
+
+            <!-- Privacy Information -->
+            <div class="setting-group">
+                <div class="setting-label">Privacy & Data Isolation</div>
+                <div class="setting-desc">
+                    Your conversations are saved strictly in your browser's <code>localStorage</code>. 
+                    NEXORA has zero server-side databases and never logs or tracks personal conversations.
+                </div>
+            </div>
+
+            <!-- Data Management -->
+            <div class="setting-group">
+                <div class="setting-label">Data Management</div>
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <button class="btn-secondary" onclick="exportCurrentConversation('md')" style="font-size:12px;">
+                        Export Chat (.md)
+                    </button>
+                    <button class="btn-secondary" onclick="clearAllChatHistory()" style="font-size:12px; color:var(--danger);">
+                        Delete All Chats
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn-primary" onclick="closeSettingsModal()">Done</button>
+        </div>
+    </div>
+</div>
+
+<!-- NEXORA Modular Engine -->
+<script src="/js/app.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,14 @@
+# Docker build ignore rules
+.git
+.gitignore
+bin/
+tests/
+screenshots/
+data/
+Personal-AI-Chatbot-PHP-Backup/
+*.bat
+*.ps1
+*.md
+*.log
+.idea/
+.vscode/

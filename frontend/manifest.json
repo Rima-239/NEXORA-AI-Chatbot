@@ -1,0 +1,36 @@
+{
+  "name": "NEXORA – Your Private AI Companion",
+  "short_name": "NEXORA",
+  "description": "Think Smarter. Create Freely. Stay Private. High-performance AI chatbot powered by Core Java 21 and Ollama.",
+  "start_url": "/index.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#07090e",
+  "theme_color": "#0e1422",
+  "categories": ["productivity", "utilities", "education"],
+  "icons": [
+    {
+      "src": "/assets/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/assets/screenshots/nexora_desktop_dark.png",
+      "sizes": "1280x820",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "NEXORA Desktop Interface"
+    },
+    {
+      "src": "/assets/screenshots/nexora_mobile_dark.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "NEXORA Mobile Interface"
+    }
+  ]
+}
