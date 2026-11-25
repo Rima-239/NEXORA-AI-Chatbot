@@ -1,3 +1,9 @@
+## 🌐 Live Demo
+
+**Try NEXORA:** [https://nexora-ai-dpyu.onrender.com](https://nexora-ai-dpyu.onrender.com)
+
+Explore the NEXORA interface and experience the personal AI chatbot.
+
 # NEXORA — Personal AI Chatbot
 
 **A multilingual, privacy-conscious personal AI assistant powered by Java 21, Ollama, and OpenRouter.**
