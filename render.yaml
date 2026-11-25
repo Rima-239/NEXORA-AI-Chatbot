@@ -18,7 +18,7 @@ services:
       - key: OPENROUTER_API_KEY
         sync: false # Set securely in Render dashboard
       - key: OPENROUTER_DEFAULT_MODEL
-        value: meta-llama/llama-3.2-3b-instruct:free
+        value: openrouter/free
       - key: RATE_LIMIT_PER_MINUTE
         value: "30"
       - key: MAX_REQUEST_SIZE_BYTES

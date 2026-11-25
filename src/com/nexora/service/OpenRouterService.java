@@ -1,6 +1,7 @@
 package com.nexora.service;
 
 import com.nexora.server.AppConfig;
+import com.nexora.util.LanguageDetector.ResponseLanguage;
 import com.nexora.util.PersonaPrompts;
 import com.nexora.util.SimpleJson;
 
@@ -26,12 +27,10 @@ public class OpenRouterService implements AiService {
 
     private final HttpClient httpClient;
 
-    // Curated list of popular free-tier models on OpenRouter
+    // Curated list of verified active free-tier models on OpenRouter
+    // Retain only the official dynamic free router to avoid fragile, rate-limited individual models
     private static final List<String> FREE_MODELS = List.of(
-            "meta-llama/llama-3.2-3b-instruct:free",
-            "google/gemini-2.0-flash-lite:free",
-            "deepseek/deepseek-r1:free",
-            "mistralai/mistral-7b-instruct:free"
+            "openrouter/free"
     );
 
     public OpenRouterService() {
@@ -42,18 +41,28 @@ public class OpenRouterService implements AiService {
 
     @Override
     @SuppressWarnings("unchecked")
-    public String generateCompletion(String model, List<Map<String, String>> messages, String persona) throws Exception {
-        if (!AppConfig.hasOpenRouterApiKey()) {
+    public String generateCompletion(String model, List<Map<String, String>> messages, String persona, List<String> memories, ResponseLanguage responseLanguage) throws Exception {
+        return generateCompletionWithKey(model, messages, persona, memories, responseLanguage, null);
+    }
+
+    @SuppressWarnings("unchecked")
+    public String generateCompletionWithKey(String model, List<Map<String, String>> messages, String persona, List<String> memories, ResponseLanguage responseLanguage, String customApiKey) throws Exception {
+        String effectiveApiKey = (customApiKey != null && !customApiKey.trim().isEmpty())
+                ? customApiKey.trim()
+                : AppConfig.getOpenRouterApiKey();
+
+        if (effectiveApiKey.isEmpty()) {
             throw new IllegalStateException("OpenRouter API key is not configured on the server. "
-                    + "Please set the OPENROUTER_API_KEY environment variable to enable public AI completions.");
+                    + "Please set the OPENROUTER_API_KEY environment variable or provide your own free key in Settings.");
         }
 
         String effectiveModel = (model != null && !model.trim().isEmpty()) ? model.trim() : AppConfig.getOpenRouterDefaultModel();
-        List<Map<String, String>> preparedMessages = prepareMessagesWithPersona(messages, persona);
+        List<Map<String, String>> preparedMessages = prepareMessagesWithPersona(messages, persona, memories, responseLanguage);
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("model", effectiveModel);
         payload.put("messages", preparedMessages);
+        payload.put("max_tokens", 2048);
         payload.put("stream", false);
 
         String jsonBody = SimpleJson.toJson(payload);
@@ -61,7 +70,7 @@ public class OpenRouterService implements AiService {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(AppConfig.getOpenRouterBaseUrl() + "/chat/completions"))
                 .header("Content-Type", "application/json; charset=UTF-8")
-                .header("Authorization", "Bearer " + AppConfig.getOpenRouterApiKey())
+                .header("Authorization", "Bearer " + effectiveApiKey)
                 .header("HTTP-Referer", "https://github.com/nexora-ai")
                 .header("X-Title", "NEXORA AI Companion")
                 .header("Accept", "application/json")
@@ -77,11 +86,16 @@ public class OpenRouterService implements AiService {
             if (statusCode == 401) {
                 throw new IOException("OpenRouter Authentication Failed: The configured OPENROUTER_API_KEY is invalid or expired.");
             } else if (statusCode == 429) {
-                throw new IOException("OpenRouter Rate Limit Exceeded: Free tier rate limit or quota has been reached. Please try again shortly.");
+                throw new IOException("OpenRouter Rate Limit Exceeded: Free tier rate limit or quota has been reached for " + effectiveModel + ". Please switch to 'openrouter/free' (Auto-Router) or a local Ollama model.");
+            } else if (statusCode == 502 || statusCode == 503 || statusCode == 504) {
+                throw new IOException("OpenRouter Service Unavailable: The upstream cloud provider is temporarily unreachable (HTTP " + statusCode + "). Please switch to a local Ollama model.");
             } else if (statusCode != 200) {
                 Map<String, Object> errorMap = tryParseJson(responseBody);
                 Map<String, Object> errInner = SimpleJson.getMap(errorMap, "error");
                 String msg = SimpleJson.getString(errInner, "message", "HTTP error " + statusCode);
+                if (statusCode == 404 || msg.contains("no longer available") || msg.contains("no provider serves this model")) {
+                    throw new IOException("OpenRouter Model Unavailable: " + msg + " Switch to 'openrouter/free' for automatic free routing.");
+                }
                 throw new IOException("OpenRouter Provider Error: " + msg);
             }
 
@@ -96,6 +110,19 @@ public class OpenRouterService implements AiService {
             String content = SimpleJson.getString(messageObj, "content", "").trim();
 
             if (content.isEmpty()) {
+                String reasoning = SimpleJson.getString(messageObj, "reasoning", "").trim();
+                if (!reasoning.isEmpty()) {
+                    content = reasoning;
+                }
+            }
+            if (content.isEmpty()) {
+                String text = SimpleJson.getString(firstChoice, "text", "").trim();
+                if (!text.isEmpty()) {
+                    content = text;
+                }
+            }
+
+            if (content.isEmpty()) {
                 throw new IOException("OpenRouter returned an empty response. Please try again.");
             }
 
@@ -107,12 +134,17 @@ public class OpenRouterService implements AiService {
     }
 
     @Override
-    public void streamCompletion(String model, List<Map<String, String>> messages, String persona, 
+    public void streamCompletion(String model, List<Map<String, String>> messages, String persona, List<String> memories, ResponseLanguage responseLanguage,
                                  Consumer<String> chunkConsumer, Runnable onComplete, Consumer<Throwable> errorConsumer) throws Exception {
+        streamCompletionWithKey(model, messages, persona, memories, responseLanguage, null, chunkConsumer, onComplete, errorConsumer);
+    }
+
+    public void streamCompletionWithKey(String model, List<Map<String, String>> messages, String persona, List<String> memories, ResponseLanguage responseLanguage, String customApiKey,
+                                        Consumer<String> chunkConsumer, Runnable onComplete, Consumer<Throwable> errorConsumer) throws Exception {
         // Fallback for public mode: generate buffered completion and deliver as a single chunk
         // This ensures maximum reliability across diverse free provider models on OpenRouter
         try {
-            String fullReply = generateCompletion(model, messages, persona);
+            String fullReply = generateCompletionWithKey(model, messages, persona, memories, responseLanguage, customApiKey);
             chunkConsumer.accept(fullReply);
             if (onComplete != null) {
                 onComplete.run();
@@ -137,9 +169,9 @@ public class OpenRouterService implements AiService {
         return AppConfig.getOpenRouterDefaultModel();
     }
 
-    private List<Map<String, String>> prepareMessagesWithPersona(List<Map<String, String>> messages, String persona) {
+    private List<Map<String, String>> prepareMessagesWithPersona(List<Map<String, String>> messages, String persona, List<String> memories, ResponseLanguage responseLanguage) {
         List<Map<String, String>> result = new ArrayList<>();
-        String systemPrompt = PersonaPrompts.getPrompt(persona);
+        String systemPrompt = PersonaPrompts.getPromptWithMemory(persona, memories, responseLanguage);
 
         Map<String, String> systemMsg = new LinkedHashMap<>();
         systemMsg.put("role", "system");

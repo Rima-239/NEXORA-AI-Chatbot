@@ -7,10 +7,15 @@
     <meta name="theme-color" content="#07090e">
     <title>NEXORA – Your Private AI Companion</title>
 
-    <!-- PWA Web App Manifest & Favicon -->
+    <!-- PWA Web App Manifest, Apple Touch & Favicons -->
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
-    <link rel="apple-touch-icon" href="/assets/icon.svg">
+    <link rel="icon" type="image/png" sizes="192x192" href="/assets/icon-192.png">
+    <link rel="apple-touch-icon" sizes="192x192" href="/assets/icon-192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="NEXORA">
+    <meta name="application-name" content="NEXORA">
 
     <!-- Google Fonts for English, Bengali & Code Blocks -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -94,6 +99,15 @@
 
         <!-- Sidebar Footer -->
         <div class="sidebar-footer">
+            <button class="btn-sidebar-settings" onclick="openModelCenterModal()" title="AI Model Center" style="width:100%; justify-content:flex-start; margin-bottom:6px; border-color:rgba(139, 92, 246, 0.3); color:var(--text-primary);">
+                <span style="font-size:14px;">🤖</span>
+                <span>Model Center</span>
+            </button>
+            <button class="btn-sidebar-settings" onclick="openMemoryModal()" title="Personal Memory" style="width:100%; justify-content:flex-start; margin-bottom:8px; border-color:rgba(6, 182, 212, 0.25);">
+                <span style="font-size:14px;">🧠</span>
+                <span>Personal Memory (<span id="sidebarMemoryCount">0</span>)</span>
+            </button>
+
             <div class="sidebar-footer-row">
                 <button class="btn-sidebar-settings" onclick="openSettingsModal()">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -153,7 +167,16 @@
                         </button>
                     </div>
                     <span class="chat-status-subtitle">
-                        <span id="headerModelPill">qwen2.5:7b</span> · Mode: <strong id="chatPersonaBadge">General</strong>
+                        <div class="chat-model-selector-wrapper" style="display:inline-flex; align-items:center; position:relative;">
+                            <button id="btnHeaderModelSelect" class="header-model-pill" onclick="toggleQuickModelDropdown(event)" title="Select Model for this chat">
+                                <span id="headerModelIcon">⚡</span>
+                                <span id="headerModelName">qwen2.5:7b</span>
+                                <span class="dropdown-arrow" style="font-size:9px; margin-left:3px; opacity:0.7;">▼</span>
+                            </button>
+                            <div id="quickModelDropdown" class="quick-model-menu" style="display:none;"></div>
+                        </div>
+                        <span style="margin: 0 4px; opacity: 0.5;">·</span>
+                        Mode: <strong id="chatPersonaBadge">General</strong>
                     </span>
                 </div>
             </div>
@@ -168,24 +191,36 @@
                     <button class="persona-pill-btn" data-persona="learning" onclick="setPersona('learning')" title="Learning Assistant">🎓 Learning</button>
                 </div>
 
+                <!-- Model Center Action -->
+                <button class="header-action-btn" onclick="openModelCenterModal()" title="AI Model Center" aria-label="AI Model Center">
+                    <span class="header-action-icon">🤖</span>
+                    <span class="header-btn-label">Models</span>
+                </button>
+
+                <!-- Memory Action -->
+                <button class="header-action-btn" onclick="openMemoryModal()" title="View and manage personal memory" aria-label="Personal Memory">
+                    <span class="header-action-icon">🧠</span>
+                    <span class="header-btn-label">Memory (<span id="headerMemoryCount">0</span>)</span>
+                </button>
+
                 <!-- Export Action -->
-                <button class="header-action-btn" onclick="exportCurrentConversation('txt')" title="Export conversation as text file">
+                <button class="header-action-btn" onclick="exportCurrentConversation('txt')" title="Export conversation as text file" aria-label="Export Conversation">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                         <polyline points="7 10 12 15 17 10"></polyline>
                         <line x1="12" y1="15" x2="12" y2="3"></line>
                     </svg>
-                    Export
+                    <span class="header-btn-label">Export</span>
                 </button>
 
                 <!-- Clear Chat Action -->
-                <button class="header-action-btn" onclick="clearCurrentChat()" title="Clear this chat">
+                <button class="header-action-btn" onclick="clearCurrentChat()" title="Clear this chat" aria-label="Clear Chat">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M3 6h18"></path>
                         <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
                         <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
                     </svg>
-                    Clear
+                    <span class="header-btn-label">Clear</span>
                 </button>
             </div>
         </header>
@@ -278,7 +313,53 @@
                     <div><strong>Operating Mode:</strong> <span id="settingsAppMode" style="color:var(--accent-cyan);">LOCAL</span></div>
                     <div><strong>AI Provider:</strong> <span id="settingsProvider">Ollama (Local)</span></div>
                     <div><strong>Local Endpoint:</strong> <code>http://127.0.0.1:11434</code></div>
-                    <div><strong>Default Model:</strong> <code>qwen2.5:7b</code></div>
+                    <div><strong>Default Model:</strong> <code id="settingsDefaultModel">qwen2.5:7b</code></div>
+                    <div style="margin-top:6px;">
+                        <button class="btn-secondary" onclick="closeSettingsModal(); openModelCenterModal();" style="font-size:12px; color:var(--accent-purple); border-color:rgba(139, 92, 246, 0.35); width:100%;">
+                            🤖 Open Complete Model Center
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- OpenRouter BYOK & Custom Backend (Optional) -->
+            <div class="setting-group">
+                <div class="setting-label">OpenRouter API Key (Optional BYOK)</div>
+                <div class="setting-desc">
+                    In Public Cloud Mode, NEXORA routes through free AI models. If public free quotas are busy, you can optionally provide your own OpenRouter API key. It is saved securely only in your browser:
+                </div>
+                <div style="margin-top:8px; display:flex; gap:8px;">
+                    <input type="password" id="settingsByokKey" placeholder="sk-or-v1-..." class="form-input" style="flex:1; font-size:12px; font-family:monospace; background:var(--bg-base); border:1px solid var(--border-subtle); border-radius:var(--radius-md); padding:8px 12px; color:var(--text-primary);" />
+                    <button class="btn-secondary" onclick="saveByokKey()" style="font-size:12px;">Save</button>
+                    <button class="btn-secondary" onclick="clearByokKey()" style="font-size:12px; color:var(--text-muted);" title="Clear key">Clear</button>
+                </div>
+                <div id="byokKeyStatus" style="font-size:11px; margin-top:4px; color:var(--text-muted);"></div>
+            </div>
+
+            <!-- Remote Backend URL (For static / Cloudflare Pages hosting) -->
+            <div class="setting-group" id="remoteBackendSettingGroup">
+                <div class="setting-label">Backend API URL (Optional)</div>
+                <div class="setting-desc">
+                    If this frontend is hosted separately on a static CDN (e.g. Cloudflare Pages), specify your NEXORA backend URL (e.g. <code>https://your-nexora.onrender.com</code>):
+                </div>
+                <div style="margin-top:8px; display:flex; gap:8px;">
+                    <input type="text" id="settingsApiBase" placeholder="https://your-nexora.onrender.com" class="form-input" style="flex:1; font-size:12px; background:var(--bg-base); border:1px solid var(--border-subtle); border-radius:var(--radius-md); padding:8px 12px; color:var(--text-primary);" />
+                    <button class="btn-secondary" onclick="saveApiBase()" style="font-size:12px;">Set</button>
+                    <button class="btn-secondary" onclick="clearApiBase()" style="font-size:12px; color:var(--text-muted);">Reset</button>
+                </div>
+                <div id="apiBaseStatus" style="font-size:11px; margin-top:4px; color:var(--text-muted);"></div>
+            </div>
+
+            <!-- Personal Memory Management -->
+            <div class="setting-group">
+                <div class="setting-label">Personal Memory (Cross-Chat)</div>
+                <div class="setting-desc">
+                    NEXORA remembers your preferences, skills, and projects across conversations and restarts.
+                </div>
+                <div style="margin-top:8px;">
+                    <button class="btn-secondary" onclick="closeSettingsModal(); openMemoryModal();" style="font-size:12px; color:var(--accent-cyan); border-color:rgba(6, 182, 212, 0.3);">
+                        🧠 Manage Personal Memories
+                    </button>
                 </div>
             </div>
 
@@ -307,6 +388,616 @@
 
         <div class="modal-footer">
             <button class="btn-primary" onclick="closeSettingsModal()">Done</button>
+        </div>
+    </div>
+</div>
+
+<!-- Personal Memory Modal -->
+<div class="modal-backdrop" id="memoryModal">
+    <div class="modal-card modal-card-lg">
+        <div class="modal-header">
+            <div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <div class="modal-title">🧠 Personal Memory</div>
+                    <span id="memoryUserIdBadge" style="font-size:11px; padding:2px 8px; border-radius:12px; background:rgba(6, 182, 212, 0.15); color:var(--accent-cyan); font-family:var(--font-mono, monospace);">User: default</span>
+                </div>
+                <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">
+                    Information NEXORA remembers across conversations and restarts.
+                </div>
+            </div>
+            <button class="modal-close-btn" onclick="closeMemoryModal()" title="Close">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+
+        <div class="modal-body">
+            <!-- Auto-Memory Toggle Card -->
+            <div class="memory-setting-card">
+                <div class="memory-setting-info">
+                    <strong>Automatic Memory Extraction</strong>
+                    <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">
+                        Automatically learn key preferences, projects, and skills from your chats.
+                    </div>
+                </div>
+                <label class="toggle-switch" title="Toggle automatic memory extraction">
+                    <input type="checkbox" id="autoMemoryToggle" onchange="toggleAutoMemory(this.checked)">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+
+            <!-- Manual Add Memory Section -->
+            <div class="memory-add-section">
+                <div class="setting-label" style="margin-bottom:6px;">Add Important Memory</div>
+                <div class="memory-input-group">
+                    <input 
+                        type="text" 
+                        id="manualMemoryInput" 
+                        class="memory-text-input" 
+                        placeholder="e.g. My favorite project is NEXORA, built with Java 21..." 
+                        maxlength="500"
+                        onkeydown="if(event.key==='Enter') handleManualAddMemory()"
+                    >
+                    <select id="manualMemoryCategory" class="memory-category-select">
+                        <option value="project">Project</option>
+                        <option value="skill">Skill / Language</option>
+                        <option value="preference">Preference</option>
+                        <option value="tool">Tool</option>
+                        <option value="goal">Goal</option>
+                        <option value="general">General</option>
+                    </select>
+                    <button class="btn-primary" onclick="handleManualAddMemory()" style="white-space:nowrap; padding:0 16px;">
+                        + Add
+                    </button>
+                </div>
+            </div>
+
+            <!-- Memory List Section -->
+            <div class="memory-list-header">
+                <div style="font-size:13px; font-weight:600; color:var(--text-main);">
+                    Saved Memories (<span id="memoryModalCount">0</span>)
+                </div>
+                <button class="btn-clear-memories" onclick="promptClearAllMemories()" title="Clear all stored memories">
+                    Clear All Memories
+                </button>
+            </div>
+
+            <!-- Memory Items Container -->
+            <div class="memory-items-container" id="memoryItemsContainer">
+                <!-- Populated dynamically via JS -->
+            </div>
+        </div>
+
+        <div class="modal-footer" style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="font-size:11.5px; color:var(--text-muted);">
+                Memories are stored locally & securely in Core Java 21.
+            </div>
+            <button class="btn-primary" onclick="closeMemoryModal()">Done</button>
+        </div>
+    </div>
+</div>
+
+<!-- Confirmation Modal for Clear All Memories -->
+<div class="modal-backdrop" id="confirmClearModal" style="z-index: 1100;">
+    <div class="modal-card" style="max-width: 420px;">
+        <div class="modal-header">
+            <div class="modal-title" style="color:var(--danger);">⚠️ Clear All Personal Memories?</div>
+            <button class="modal-close-btn" onclick="closeConfirmClearModal()" title="Cancel">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div class="modal-body" style="font-size:13px; line-height:1.6; color:var(--text-muted);">
+            Are you sure you want to permanently delete all personal memories? 
+            NEXORA will forget all cross-chat user preferences, projects, and skills.
+            This action cannot be undone.
+        </div>
+        <div class="modal-footer" style="display:flex; justify-content:flex-end; gap:10px;">
+            <button class="btn-secondary" onclick="closeConfirmClearModal()">Cancel</button>
+            <button class="btn-primary" onclick="executeClearAllMemories()" style="background:var(--danger); border-color:var(--danger);">
+                Yes, Clear All
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- =========================================================================
+     AI MODEL CENTER & INTELLIGENT MODEL MANAGEMENT MODAL
+     ========================================================================= -->
+<div class="modal-backdrop" id="modelCenterModal" style="z-index: 1050;">
+    <div class="modal-card modal-card-xl">
+        <div class="modal-header">
+            <div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <div class="modal-title">🤖 AI Model Center & Intelligent Management</div>
+                    <span id="mcActiveModelBadge" style="font-size:11px; padding:2px 8px; border-radius:12px; background:rgba(124, 58, 237, 0.2); color:var(--accent-purple); font-family:var(--font-mono, monospace);">Active: qwen2.5:7b</span>
+                </div>
+                <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">
+                    Manage Ollama local models, OpenRouter catalog, domain profiles, and hardware performance.
+                </div>
+            </div>
+            <button class="modal-close-btn" onclick="closeModelCenterModal()" title="Close">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="mc-nav-tabs">
+            <button class="mc-tab-btn active" data-tab="installed" onclick="switchModelCenterTab('installed')" title="Installed Local Models &amp; Management">
+                <span class="mc-tab-icon">💻</span>
+                <span class="mc-tab-label">Local Models &amp; Install</span>
+            </button>
+            <button class="mc-tab-btn" data-tab="catalog" onclick="switchModelCenterTab('catalog')" title="Browse Cloud Model Catalog">
+                <span class="mc-tab-icon">☁️</span>
+                <span class="mc-tab-label">Cloud Catalog</span>
+            </button>
+            <button class="mc-tab-btn" data-tab="profiles" onclick="switchModelCenterTab('profiles')" title="Model Profiles &amp; Favorites">
+                <span class="mc-tab-icon">🎯</span>
+                <span class="mc-tab-label">Profiles &amp; Favorites</span>
+            </button>
+            <button class="mc-tab-btn" data-tab="performance" onclick="switchModelCenterTab('performance')" title="Hardware Telemetry &amp; Performance">
+                <span class="mc-tab-icon">📊</span>
+                <span class="mc-tab-label">Performance &amp; Hardware</span>
+            </button>
+        </div>
+
+        <div class="modal-body">
+            <!-- =================================================================
+                 TAB 1: LOCAL MODELS & INSTALL (Sections 1, 2, 3, 4, 5)
+                 ================================================================= -->
+            <div id="mcTabInstalled" class="mc-tab-pane active">
+                <!-- Section 1 & 2: Provider & Connection Status -->
+                <div class="mc-grid-2">
+                    <!-- Section 1: AI Provider Selector -->
+                    <div class="mc-card">
+                        <div class="mc-card-header">
+                            <span class="mc-card-title">1. AI Engine Provider</span>
+                            <span id="mcCurrentProviderBadge" class="mc-badge-cyan">LOCAL</span>
+                        </div>
+                        <div class="mc-card-desc">Choose between local private Ollama inference or public cloud AI.</div>
+                        <div class="mc-provider-toggle-group">
+                            <button id="btnProviderLocal" class="mc-provider-btn active" onclick="setAiProvider('LOCAL')">
+                                <span style="font-size:16px;">🏠</span>
+                                <div style="text-align:left;">
+                                    <strong>Local Ollama</strong>
+                                    <div style="font-size:11px; opacity:0.75;">Private, offline, no API key</div>
+                                </div>
+                            </button>
+                            <button id="btnProviderPublic" class="mc-provider-btn" onclick="setAiProvider('PUBLIC')">
+                                <span style="font-size:16px;">☁️</span>
+                                <div style="text-align:left;">
+                                    <strong>OpenRouter Cloud</strong>
+                                    <div style="font-size:11px; opacity:0.75;">Hosted models, free tier available</div>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Section 2: Connection Status -->
+                    <div class="mc-card">
+                        <div class="mc-card-header">
+                            <span class="mc-card-title">2. Connection Status</span>
+                            <button class="btn-secondary" onclick="checkAllConnections()" style="font-size:11px; padding:3px 8px;">
+                                🔄 Refresh Status
+                            </button>
+                        </div>
+                        <div class="mc-status-list">
+                            <div class="mc-status-item">
+                                <div style="display:flex; align-items:center; gap:8px;">
+                                    <span id="mcOllamaDot" class="status-dot"></span>
+                                    <span><strong>Ollama:</strong> <code>http://127.0.0.1:11434</code></span>
+                                </div>
+                                <span id="mcOllamaStatusText" style="font-size:11.5px; color:var(--text-muted);">Checking...</span>
+                            </div>
+                            <div class="mc-status-item">
+                                <div style="display:flex; align-items:center; gap:8px;">
+                                    <span id="mcOpenRouterDot" class="status-dot"></span>
+                                    <span><strong>OpenRouter:</strong> <code>api/v1/models</code></span>
+                                </div>
+                                <span id="mcOpenRouterStatusText" style="font-size:11.5px; color:var(--text-muted);">Checking...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 3: Hardware Recommendations Banner -->
+                <div class="mc-hw-banner" id="mcHwBanner">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
+                        <div>
+                            <div style="font-weight:700; color:var(--text-primary); display:flex; align-items:center; gap:6px;">
+                                <span>⚡ 3. Hardware Recommendation Advisor</span>
+                                <span class="mc-badge-purple" id="mcHwBadge">AMD Ryzen 5 7535HS</span>
+                            </div>
+                            <div style="font-size:12px; color:var(--text-secondary); margin-top:3px;" id="mcHwDetails">
+                                Physical Memory: <strong id="mcHwRamTotal">16 GB</strong> · Free: <strong id="mcHwRamFree">8 GB</strong> · 6 Cores / 12 Threads
+                            </div>
+                        </div>
+                        <div style="font-size:11px; color:var(--text-muted); text-align:right;">
+                            Approximate estimates based on 16GB DDR5 hardware profile.
+                        </div>
+                    </div>
+                    <div class="mc-hw-legend">
+                        <span class="mc-suitability-pill rec">✓ RECOMMENDED (&le;8B Q4/Q5)</span>
+                        <span class="mc-suitability-pill slow">⚠️ MAY RUN SLOWLY (13B-14B)</span>
+                        <span class="mc-suitability-pill high">⛔ HIGH RAM (&gt;14B)</span>
+                    </div>
+                </div>
+
+                <!-- Section 5: Install New Model -->
+                <div class="mc-card" style="margin-top:16px;">
+                    <div class="mc-card-header">
+                        <span class="mc-card-title">5. Install New Ollama Model</span>
+                        <a href="https://ollama.com/library" target="_blank" rel="noopener noreferrer" style="font-size:12px; color:var(--accent-cyan); text-decoration:none;">
+                            Browse Library ↗
+                        </a>
+                    </div>
+                    <div class="mc-card-desc">Enter any official model tag from the Ollama model library to download directly into NEXORA:</div>
+                    <div class="mc-pull-input-row">
+                        <input type="text" id="mcPullInput" class="input-modern" placeholder="e.g. llama3.2:3b, mistral:7b, deepseek-r1:8b" style="flex:1;">
+                        <button class="btn-primary" id="btnStartPull" onclick="startModelPull()">
+                            ⬇️ Install Model
+                        </button>
+                    </div>
+                    <!-- Quick Suggestions -->
+                    <div style="display:flex; align-items:center; gap:6px; margin-top:8px; flex-wrap:wrap;">
+                        <span style="font-size:11px; color:var(--text-muted);">Quick Install:</span>
+                        <button type="button" class="mc-chip-btn" data-tag="qwen2.5:3b" onclick="setPullInput('qwen2.5:3b')">qwen2.5:3b</button>
+                        <button type="button" class="mc-chip-btn" data-tag="qwen2.5:7b" onclick="setPullInput('qwen2.5:7b')">qwen2.5:7b</button>
+                        <button type="button" class="mc-chip-btn" data-tag="llama3.2:3b" onclick="setPullInput('llama3.2:3b')">llama3.2:3b</button>
+                        <button type="button" class="mc-chip-btn" data-tag="mistral:7b" onclick="setPullInput('mistral:7b')">mistral:7b</button>
+                        <button type="button" class="mc-chip-btn" data-tag="deepseek-r1:8b" onclick="setPullInput('deepseek-r1:8b')">deepseek-r1:8b</button>
+                    </div>
+
+                    <!-- Streaming Progress Card -->
+                    <div id="mcPullProgressCard" class="mc-pull-progress-card" style="display:none;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <div>
+                                <strong id="mcPullStatusTitle" style="color:var(--text-primary); font-size:13px;">Downloading Model...</strong>
+                                <div id="mcPullModelName" style="font-size:11.5px; color:var(--accent-cyan); font-family:var(--font-mono, monospace);">qwen2.5:3b</div>
+                            </div>
+                            <button class="btn-secondary" onclick="cancelModelPull()" style="color:var(--danger); border-color:rgba(239, 68, 68, 0.3); font-size:11.5px; padding:3px 10px;">
+                                Cancel
+                            </button>
+                        </div>
+                        <div class="mc-progress-track">
+                            <div id="mcPullProgressBar" class="mc-progress-fill" style="width: 0%;"></div>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; font-size:11.5px; color:var(--text-muted); margin-top:4px;">
+                            <span id="mcPullPercent">0%</span>
+                            <span id="mcPullSize">0 MB / 0 MB</span>
+                            <span id="mcPullSpeed">0 MB/s</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 4: Installed Local Models -->
+                <div class="mc-card" style="margin-top:16px;">
+                    <div class="mc-card-header">
+                        <div>
+                            <span class="mc-card-title">4. Installed Local Models</span>
+                            <span id="mcInstalledCount" class="mc-badge-purple" style="margin-left:6px;">0</span>
+                        </div>
+                        <button class="btn-secondary" onclick="loadInstalledModels()" style="font-size:11.5px; padding:3px 10px;">
+                            🔄 Refresh Models
+                        </button>
+                    </div>
+                    <div class="mc-card-desc">Models installed locally on your machine via Ollama:</div>
+                    <div id="mcInstalledList" class="mc-models-grid">
+                        <div style="padding:20px; text-align:center; color:var(--text-muted); grid-column:1/-1;">Loading installed models...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- =================================================================
+                 TAB 2: CLOUD CATALOG (Section 6)
+                 ================================================================= -->
+            <div id="mcTabCatalog" class="mc-tab-pane">
+                <div class="mc-card">
+                    <div class="mc-card-header">
+                        <div>
+                            <span class="mc-card-title">6. OpenRouter Cloud Catalog</span>
+                            <span id="mcCatalogCount" class="mc-badge-cyan" style="margin-left:6px;">0</span>
+                        </div>
+                        <button class="btn-secondary" onclick="loadOpenRouterCatalog(true)" style="font-size:11.5px; padding:3px 10px;">
+                            🔄 Refresh Catalog
+                        </button>
+                    </div>
+                    <div class="mc-card-desc">Browse thousands of public cloud models available through OpenRouter:</div>
+                    
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:12px;">
+                        <input type="text" id="mcCatalogSearch" class="input-modern" placeholder="Search models by name or ID (e.g. llama, deepseek, claude)..." style="flex:1;" oninput="filterCatalogDebounced()">
+                        <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--text-secondary); cursor:pointer;">
+                            <input type="checkbox" id="mcCatalogFreeOnly" onchange="filterCatalogDebounced()">
+                            Free Models Only
+                        </label>
+                    </div>
+
+                    <div id="mcCatalogNotice" style="font-size:11.5px; color:var(--text-muted); margin-bottom:10px; background:var(--bg-base); padding:8px 12px; border-radius:var(--radius-sm); border:1px solid var(--border-subtle);">
+                        ℹ️ OpenRouter models run in the cloud. Free-tier models have <code>:free</code> tag. API keys are handled securely on the Java server.
+                    </div>
+
+                    <div id="mcCatalogList" class="mc-models-grid">
+                        <!-- Populated dynamically via JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- =================================================================
+                 TAB 3: PROFILES & FAVORITES (Sections 7, 8, 9, 10)
+                 ================================================================= -->
+            <div id="mcTabProfiles" class="mc-tab-pane">
+                <!-- Section 7 & 8: Global Defaults & Per-Chat Selection -->
+                <div class="mc-grid-2">
+                    <!-- Section 7: Global Default Model -->
+                    <div class="mc-card">
+                        <div class="mc-card-header">
+                            <span class="mc-card-title">7. Global Default Model</span>
+                        </div>
+                        <div class="mc-card-desc">System default model used when starting fresh chats:</div>
+                        <div style="display:flex; flex-direction:column; gap:10px; margin-top:10px;">
+                            <div>
+                                <label style="font-size:12px; color:var(--text-secondary); display:block; margin-bottom:4px;">Default Provider</label>
+                                <select id="mcSettingsDefaultProvider" class="input-modern" style="width:100%;">
+                                    <option value="LOCAL">LOCAL (Ollama)</option>
+                                    <option value="PUBLIC">PUBLIC (OpenRouter)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size:12px; color:var(--text-secondary); display:block; margin-bottom:4px;">Default Local Model</label>
+                                <select id="mcSettingsDefaultLocalModel" class="input-modern" style="width:100%;">
+                                    <!-- Populated dynamically -->
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size:12px; color:var(--text-secondary); display:block; margin-bottom:4px;">Default Cloud Model</label>
+                                <select id="mcSettingsDefaultCloudModel" class="input-modern" style="width:100%;">
+                                    <option value="openrouter/free">openrouter/free (Auto-Router ★ Recommended)</option>
+                                </select>
+                            </div>
+                            <button class="btn-primary" onclick="saveGlobalModelSettings()" style="align-self:flex-start; margin-top:4px;">
+                                💾 Save Global Settings
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Section 8: Per-Chat Model Picker -->
+                    <div class="mc-card">
+                        <div class="mc-card-header">
+                            <span class="mc-card-title">8. Per-Chat Model Selection</span>
+                            <span class="mc-badge-cyan">Active Chat</span>
+                        </div>
+                        <div class="mc-card-desc">Assign a dedicated model specifically for the currently active conversation:</div>
+                        <div style="display:flex; flex-direction:column; gap:10px; margin-top:10px;">
+                            <div>
+                                <label style="font-size:12px; color:var(--text-secondary); display:block; margin-bottom:4px;">Model for This Chat</label>
+                                <select id="mcCurrentChatModelSelect" class="input-modern" style="width:100%;">
+                                    <!-- Populated dynamically -->
+                                </select>
+                            </div>
+                            <button class="btn-primary" onclick="applyModelToCurrentChat()" style="align-self:flex-start; margin-top:4px;">
+                                ✓ Apply to Active Chat
+                            </button>
+                            <div style="font-size:11.5px; color:var(--text-muted); margin-top:4px;">
+                                Other conversations will keep their own respective models untouched.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 9: Model Profiles -->
+                <div class="mc-card" style="margin-top:16px;">
+                    <div class="mc-card-header">
+                        <div>
+                            <span class="mc-card-title">9. Intelligent Model Profiles</span>
+                        </div>
+                        <button class="btn-secondary" onclick="openCreateProfileModal()" style="font-size:11.5px; padding:3px 10px;">
+                            ➕ New Custom Profile
+                        </button>
+                    </div>
+                    <div class="mc-card-desc">Pre-configured operational personas combined with optimal models:</div>
+                    <div id="mcProfilesList" class="mc-profiles-grid">
+                        <!-- Populated dynamically via JS -->
+                    </div>
+                </div>
+
+                <!-- Section 10: Favorite Models -->
+                <div class="mc-card" style="margin-top:16px;">
+                    <div class="mc-card-header">
+                        <span class="mc-card-title">10. Favorite Models (Starred)</span>
+                        <span id="mcFavoritesCount" class="mc-badge-purple">0</span>
+                    </div>
+                    <div class="mc-card-desc">Quick-access favorite local and cloud models:</div>
+                    <div id="mcFavoritesList" class="mc-favorites-grid">
+                        <!-- Populated dynamically via JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- =================================================================
+                 TAB 4: PERFORMANCE & DETAILS (Sections 11, 12)
+                 ================================================================= -->
+            <div id="mcTabPerformance" class="mc-tab-pane">
+                <!-- Section 11: Performance History Dashboard -->
+                <div class="mc-card">
+                    <div class="mc-card-header">
+                        <span class="mc-card-title">11. Model Performance Monitor</span>
+                        <button class="btn-secondary" onclick="clearPerformanceHistoryConfirm()" style="font-size:11.5px; color:var(--danger); border-color:rgba(239, 68, 68, 0.3); padding:3px 10px;">
+                            🗑️ Clear History
+                        </button>
+                    </div>
+                    <div class="mc-card-desc">Real-time measured generation statistics from Core Java 21:</div>
+
+                    <!-- Metrics Stat Cards -->
+                    <div class="mc-metrics-grid">
+                        <div class="mc-stat-card">
+                            <div class="mc-stat-value" id="mcStatAvgDuration">0 ms</div>
+                            <div class="mc-stat-label">Avg Total Latency</div>
+                        </div>
+                        <div class="mc-stat-card">
+                            <div class="mc-stat-value" id="mcStatAvgTtft">0 ms</div>
+                            <div class="mc-stat-label">Time to First Token (TTFT)</div>
+                        </div>
+                        <div class="mc-stat-card">
+                            <div class="mc-stat-value" id="mcStatAvgTps">0.0</div>
+                            <div class="mc-stat-label">Tokens / Second</div>
+                        </div>
+                        <div class="mc-stat-card">
+                            <div class="mc-stat-value" id="mcStatTotalRequests">0</div>
+                            <div class="mc-stat-label">Total Queries Recorded</div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Requests Table -->
+                    <div style="margin-top:16px; overflow-x:auto;">
+                        <table class="mc-table">
+                            <thead>
+                                <tr>
+                                    <th>Model</th>
+                                    <th>Provider</th>
+                                    <th>Latency</th>
+                                    <th>TTFT</th>
+                                    <th>Speed</th>
+                                    <th>Status</th>
+                                    <th>Timestamp</th>
+                                </tr>
+                            </thead>
+                            <tbody id="mcPerfTableBody">
+                                <tr>
+                                    <td colspan="7" style="text-align:center; color:var(--text-muted); padding:20px;">No performance logs recorded yet. Send a message to measure model performance!</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Section 12: Model Details Inspector -->
+                <div class="mc-card" style="margin-top:16px;">
+                    <div class="mc-card-header">
+                        <span class="mc-card-title">12. Model Architecture & Specifications</span>
+                        <span id="mcDetailsModelId" class="mc-badge-cyan">qwen2.5:7b</span>
+                    </div>
+                    <div class="mc-card-desc">Deep technical parameters and memory allocation details:</div>
+                    <div id="mcModelDetailsGrid" class="mc-details-grid">
+                        <!-- Populated dynamically via JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-footer" style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="font-size:11.5px; color:var(--text-muted);">
+                Model management, telemetry, and safe deletion powered by Core Java 21.
+            </div>
+            <button class="btn-primary" onclick="closeModelCenterModal()">Done</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Create/Edit Custom Profile -->
+<div class="modal-backdrop" id="createProfileModal" style="z-index: 1100;">
+    <div class="modal-card" style="max-width: 480px;">
+        <div class="modal-header">
+            <div class="modal-title">Create Custom Model Profile</div>
+            <button class="modal-close-btn" onclick="closeCreateProfileModal()" title="Close">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div class="modal-body" style="display:flex; flex-direction:column; gap:12px;">
+            <div>
+                <label style="font-size:12px; color:var(--text-secondary); display:block; margin-bottom:4px;">Profile Name</label>
+                <input type="text" id="profInputName" class="input-modern" placeholder="e.g. Research Assistant" style="width:100%;">
+            </div>
+            <div>
+                <label style="font-size:12px; color:var(--text-secondary); display:block; margin-bottom:4px;">Description</label>
+                <input type="text" id="profInputDesc" class="input-modern" placeholder="e.g. Deep factual inquiries and academic summarization" style="width:100%;">
+            </div>
+            <div>
+                <label style="font-size:12px; color:var(--text-secondary); display:block; margin-bottom:4px;">AI Provider</label>
+                <select id="profInputProvider" class="input-modern" style="width:100%;" onchange="updateProfileModelOptions()">
+                    <option value="LOCAL">LOCAL (Ollama)</option>
+                    <option value="PUBLIC">PUBLIC (OpenRouter)</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size:12px; color:var(--text-secondary); display:block; margin-bottom:4px;">Model</label>
+                <select id="profInputModel" class="input-modern" style="width:100%;">
+                    <!-- Populated dynamically -->
+                </select>
+            </div>
+            <div>
+                <label style="font-size:12px; color:var(--text-secondary); display:block; margin-bottom:4px;">Base Persona Prompt</label>
+                <select id="profInputPersona" class="input-modern" style="width:100%;">
+                    <option value="general">⚡ General</option>
+                    <option value="coding">💻 Coding</option>
+                    <option value="writing">✍️ Writing</option>
+                    <option value="learning">🎓 Learning</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer" style="display:flex; justify-content:flex-end; gap:10px;">
+            <button class="btn-secondary" onclick="closeCreateProfileModal()">Cancel</button>
+            <button class="btn-primary" onclick="submitCustomProfile()">Save Profile</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Confirm Model Deletion -->
+<div class="modal-backdrop" id="confirmDeleteModelModal" style="z-index: 1150;">
+    <div class="modal-card" style="max-width: 420px;">
+        <div class="modal-header">
+            <div class="modal-title" style="color:var(--danger);">⚠️ Confirm Model Deletion</div>
+            <button class="modal-close-btn" onclick="closeConfirmDeleteModelModal()" title="Close">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div class="modal-body" style="font-size:13px; line-height:1.6; color:var(--text-muted);">
+            Are you sure you want to uninstall local model <strong id="deleteModelNameTarget" style="color:var(--text-primary);">model:tag</strong> from Ollama?
+            <div style="margin-top:8px; font-size:12px; color:var(--danger);">
+                This will delete the local model weights from your machine. Protected models cannot be deleted.
+            </div>
+        </div>
+        <div class="modal-footer" style="display:flex; justify-content:flex-end; gap:10px;">
+            <button class="btn-secondary" onclick="closeConfirmDeleteModelModal()">Cancel</button>
+            <button class="btn-primary" onclick="executeDeleteModel()" style="background:var(--danger); border-color:var(--danger);">
+                Yes, Delete
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Confirmation Modal for Clear Performance History -->
+<div class="modal-backdrop" id="confirmClearPerfModal" style="z-index: 1150;">
+    <div class="modal-card" style="max-width: 420px;">
+        <div class="modal-header">
+            <div class="modal-title" style="color:var(--danger);">⚠️ Clear Performance History?</div>
+            <button class="modal-close-btn" onclick="closeConfirmClearPerfModal()" title="Close">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div class="modal-body" style="font-size:13px; line-height:1.6; color:var(--text-muted);">
+            Are you sure you want to clear all model execution latency and throughput metrics?
+        </div>
+        <div class="modal-footer" style="display:flex; justify-content:flex-end; gap:10px;">
+            <button class="btn-secondary" onclick="closeConfirmClearPerfModal()">Cancel</button>
+            <button class="btn-primary" onclick="executeClearPerformance()" style="background:var(--danger); border-color:var(--danger);">
+                Yes, Clear History
+            </button>
         </div>
     </div>
 </div>

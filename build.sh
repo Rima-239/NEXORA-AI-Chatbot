@@ -7,6 +7,7 @@ mkdir -p bin
 
 javac -d bin -encoding UTF-8 -sourcepath src \
     src/com/nexora/Main.java \
+    src/com/nexora/model/*.java \
     src/com/nexora/server/*.java \
     src/com/nexora/controller/*.java \
     src/com/nexora/service/*.java \

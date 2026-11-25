@@ -1,9 +1,13 @@
+
 # ==============================================================================
 # NEXORA - Git Ignore Configuration
 # ==============================================================================
 
 # Compiled Java Bytecode
 bin/
+out/
+build/
+target/
 *.class
 
 # Temporary and Test Artefacts
@@ -15,6 +19,7 @@ tmp/
 # Environment Variables & Secrets (CRITICAL)
 .env
 .env.*
+!.env.example
 *.key
 *.pem
 *.secret
@@ -28,13 +33,22 @@ tmp/
 .settings/
 .classpath
 .project
+
+# Operating System Files
 .DS_Store
 Thumbs.db
 desktop.ini
 
 # Backup & Legacy Safeguards
 Personal-AI-Chatbot-PHP-Backup/
-data/
+*.bak
+*.backup
+
+# Runtime Data
+# Ignore generated user data, but retain the folder placeholder.
+data/*
+!data/.gitkeep
+!data/README.md
 
 # OS / Crash Dumps
 hs_err_pid*.log

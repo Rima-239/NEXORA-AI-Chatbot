@@ -71,8 +71,11 @@ public class StaticFileHandler extends BaseController {
         exchange.getResponseHeaders().set("Content-Type", mimeType);
         exchange.getResponseHeaders().set("Content-Length", String.valueOf(file.length()));
 
-        if (file.getName().endsWith(".html")) {
-            exchange.getResponseHeaders().set("Cache-Control", "no-cache");
+        String fileNameLower = file.getName().toLowerCase();
+        if (fileNameLower.endsWith(".html") || fileNameLower.endsWith(".js") || fileNameLower.endsWith(".css")) {
+            exchange.getResponseHeaders().set("Cache-Control", "no-cache, no-store, must-revalidate");
+            exchange.getResponseHeaders().set("Pragma", "no-cache");
+            exchange.getResponseHeaders().set("Expires", "0");
         } else {
             exchange.getResponseHeaders().set("Cache-Control", "public, max-age=3600");
         }

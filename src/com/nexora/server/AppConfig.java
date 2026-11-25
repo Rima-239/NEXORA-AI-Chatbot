@@ -1,10 +1,17 @@
 package com.nexora.server;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * AppConfig
  * 
  * Central configuration manager for NEXORA.
- * Reads environment variables with sensible defaults for Local and Public modes.
+ * Reads environment variables and optional .env file with sensible defaults for Local and Public modes.
  * 
  * Part of NEXORA - AI-Powered Personal Chatbot
  */
@@ -22,6 +29,8 @@ public class AppConfig {
     private static final int MAX_REQUEST_SIZE_BYTES;
     private static final int RATE_LIMIT_PER_MINUTE;
     private static final int REQUEST_TIMEOUT_SECONDS;
+    private static final String MEMORY_DIR;
+    private static final String MODELS_DIR;
 
     // Local AI Settings (Ollama)
     private static final String OLLAMA_BASE_URL;
@@ -33,12 +42,15 @@ public class AppConfig {
     private static final String OPENROUTER_DEFAULT_MODEL;
 
     static {
+        // Load optional .env file from project root if present
+        Map<String, String> dotEnv = loadDotEnv();
+
         // Port configuration (standard 8080 locally, or dynamic PORT provided by Render/Heroku)
-        String envPort = System.getenv("PORT");
+        String envPort = getEnvOrDot("PORT", dotEnv);
         PORT = (envPort != null && !envPort.trim().isEmpty()) ? parsePort(envPort.trim(), 8080) : 8080;
 
         // Operating mode: LOCAL or PUBLIC
-        String envMode = System.getenv("APP_MODE");
+        String envMode = getEnvOrDot("APP_MODE", dotEnv);
         if (envMode != null && envMode.trim().equalsIgnoreCase("PUBLIC")) {
             APP_MODE = Mode.PUBLIC;
         } else {
@@ -46,38 +58,88 @@ public class AppConfig {
         }
 
         // Frontend static directory location (defaults to "frontend")
-        String envFrontend = System.getenv("FRONTEND_DIR");
+        String envFrontend = getEnvOrDot("FRONTEND_DIR", dotEnv);
         FRONTEND_DIR = (envFrontend != null && !envFrontend.trim().isEmpty()) ? envFrontend.trim() : "frontend";
 
         // Local Ollama Settings
-        String envOllamaUrl = System.getenv("OLLAMA_BASE_URL");
+        String envOllamaUrl = getEnvOrDot("OLLAMA_BASE_URL", dotEnv);
         OLLAMA_BASE_URL = (envOllamaUrl != null && !envOllamaUrl.trim().isEmpty()) 
             ? envOllamaUrl.trim().replaceAll("/+$", "") 
             : "http://127.0.0.1:11434";
 
-        String envOllamaModel = System.getenv("OLLAMA_DEFAULT_MODEL");
+        String envOllamaModel = getEnvOrDot("OLLAMA_DEFAULT_MODEL", dotEnv);
         OLLAMA_DEFAULT_MODEL = (envOllamaModel != null && !envOllamaModel.trim().isEmpty()) 
             ? envOllamaModel.trim() 
             : "qwen2.5:7b";
 
         // Public OpenRouter Settings
-        String envOpenRouterUrl = System.getenv("OPENROUTER_BASE_URL");
+        String envOpenRouterUrl = getEnvOrDot("OPENROUTER_BASE_URL", dotEnv);
         OPENROUTER_BASE_URL = (envOpenRouterUrl != null && !envOpenRouterUrl.trim().isEmpty())
             ? envOpenRouterUrl.trim().replaceAll("/+$", "")
             : "https://openrouter.ai/api/v1";
 
-        String envApiKey = System.getenv("OPENROUTER_API_KEY");
+        String envApiKey = getEnvOrDot("OPENROUTER_API_KEY", dotEnv);
         OPENROUTER_API_KEY = (envApiKey != null) ? envApiKey.trim() : "";
 
-        String envOpenRouterModel = System.getenv("OPENROUTER_DEFAULT_MODEL");
+        String envOpenRouterModel = getEnvOrDot("OPENROUTER_DEFAULT_MODEL", dotEnv);
         OPENROUTER_DEFAULT_MODEL = (envOpenRouterModel != null && !envOpenRouterModel.trim().isEmpty())
             ? envOpenRouterModel.trim()
-            : "meta-llama/llama-3.2-3b-instruct:free";
+            : "openrouter/free";
 
         // Security & Rate Limiting
-        RATE_LIMIT_PER_MINUTE = parsePositiveInt(System.getenv("RATE_LIMIT_PER_MINUTE"), 30);
-        MAX_REQUEST_SIZE_BYTES = parsePositiveInt(System.getenv("MAX_REQUEST_SIZE_BYTES"), 1048576); // 1 MB
-        REQUEST_TIMEOUT_SECONDS = parsePositiveInt(System.getenv("REQUEST_TIMEOUT_SECONDS"), 180); // 3 minutes
+        RATE_LIMIT_PER_MINUTE = parsePositiveInt(getEnvOrDot("RATE_LIMIT_PER_MINUTE", dotEnv), 30);
+        MAX_REQUEST_SIZE_BYTES = parsePositiveInt(getEnvOrDot("MAX_REQUEST_SIZE_BYTES", dotEnv), 1048576); // 1 MB
+        REQUEST_TIMEOUT_SECONDS = parsePositiveInt(getEnvOrDot("REQUEST_TIMEOUT_SECONDS", dotEnv), 180); // 3 minutes
+
+        // Memory Storage Directory
+        String envMemoryDir = getEnvOrDot("MEMORY_DIR", dotEnv);
+        MEMORY_DIR = (envMemoryDir != null && !envMemoryDir.trim().isEmpty()) ? envMemoryDir.trim() : "data/memories";
+
+        // Models Storage Directory
+        String envModelsDir = getEnvOrDot("MODELS_DIR", dotEnv);
+        MODELS_DIR = (envModelsDir != null && !envModelsDir.trim().isEmpty()) ? envModelsDir.trim() : "data/models";
+    }
+
+    private static Map<String, String> loadDotEnv() {
+        Map<String, String> envMap = new HashMap<>();
+        File envFile = new File(".env");
+        if (envFile.exists() && envFile.isFile()) {
+            try (BufferedReader reader = new BufferedReader(new FileReader(envFile, StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    line = line.trim();
+                    if (line.isEmpty() || line.startsWith("#")) {
+                        continue;
+                    }
+                    int eq = line.indexOf('=');
+                    if (eq > 0) {
+                        String key = line.substring(0, eq).trim();
+                        String val = line.substring(eq + 1).trim();
+                        if ((val.startsWith("\"") && val.endsWith("\"") && val.length() >= 2) ||
+                            (val.startsWith("'") && val.endsWith("'") && val.length() >= 2)) {
+                            val = val.substring(1, val.length() - 1);
+                        }
+                        if (!key.isEmpty()) {
+                            envMap.put(key, val);
+                        }
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return envMap;
+    }
+
+    private static String getEnvOrDot(String key, Map<String, String> dotEnv) {
+        String sys = System.getenv(key);
+        if (sys != null && !sys.trim().isEmpty()) {
+            return sys.trim();
+        }
+        String dot = dotEnv.get(key);
+        if (dot != null && !dot.trim().isEmpty()) {
+            return dot.trim();
+        }
+        return null;
     }
 
     private static int parsePort(String value, int defaultVal) {
@@ -119,6 +181,8 @@ public class AppConfig {
     public static int getRateLimitPerMinute() { return RATE_LIMIT_PER_MINUTE; }
     public static int getMaxRequestSizeBytes() { return MAX_REQUEST_SIZE_BYTES; }
     public static int getRequestTimeoutSeconds() { return REQUEST_TIMEOUT_SECONDS; }
+    public static String getMemoryDir() { return MEMORY_DIR; }
+    public static String getModelsDir() { return MODELS_DIR; }
 
     /**
      * Resolves the model to use: uses client requested model if valid, otherwise falls back to mode default.

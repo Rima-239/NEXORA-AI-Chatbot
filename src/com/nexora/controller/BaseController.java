@@ -25,8 +25,8 @@ public abstract class BaseController implements HttpHandler {
 
     protected void handleCors(HttpExchange exchange) {
         exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
-        exchange.getResponseHeaders().set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-        exchange.getResponseHeaders().set("Access-Control-Allow-Headers", "Content-Type, Accept, Authorization, X-Requested-With");
+        exchange.getResponseHeaders().set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        exchange.getResponseHeaders().set("Access-Control-Allow-Headers", "Content-Type, Accept, Authorization, X-Requested-With, X-User-Id, X-OpenRouter-Key");
     }
 
     protected boolean handlePreflight(HttpExchange exchange) throws IOException {

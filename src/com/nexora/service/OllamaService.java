@@ -1,6 +1,7 @@
 package com.nexora.service;
 
 import com.nexora.server.AppConfig;
+import com.nexora.util.LanguageDetector.ResponseLanguage;
 import com.nexora.util.PersonaPrompts;
 import com.nexora.util.SimpleJson;
 
@@ -35,14 +36,19 @@ public class OllamaService implements AiService {
     }
 
     @Override
-    public String generateCompletion(String model, List<Map<String, String>> messages, String persona) throws Exception {
+    public String generateCompletion(String model, List<Map<String, String>> messages, String persona, List<String> memories, ResponseLanguage responseLanguage) throws Exception {
         String effectiveModel = (model != null && !model.trim().isEmpty()) ? model.trim() : AppConfig.getOllamaDefaultModel();
-        List<Map<String, String>> preparedMessages = prepareMessagesWithPersona(messages, persona);
+        List<Map<String, String>> preparedMessages = prepareMessagesWithPersona(messages, persona, memories, responseLanguage);
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("model", effectiveModel);
         payload.put("messages", preparedMessages);
         payload.put("stream", false);
+
+        Map<String, Object> options = new LinkedHashMap<>();
+        options.put("temperature", 0.5);
+        options.put("top_p", 0.9);
+        payload.put("options", options);
 
         String jsonBody = SimpleJson.toJson(payload);
 
@@ -67,10 +73,20 @@ public class OllamaService implements AiService {
 
             Map<String, Object> responseData = SimpleJson.parseObject(responseBody);
             Map<String, Object> messageObj = SimpleJson.getMap(responseData, "message");
-            String content = SimpleJson.getString(messageObj, "content", "").trim();
+            String content = "";
+            if (messageObj != null) {
+                content = SimpleJson.getString(messageObj, "content", "").trim();
+            }
+            if (content.isEmpty()) {
+                content = SimpleJson.getString(responseData, "response", "").trim();
+            }
+            if (content.isEmpty()) {
+                content = SimpleJson.getString(responseData, "content", "").trim();
+            }
 
             if (content.isEmpty()) {
-                throw new IOException("Ollama returned an empty response. Please try again.");
+                throw new IOException("Ollama returned an empty completion for model '" + effectiveModel 
+                        + "'. Please check that the model is responding properly via Ollama.");
             }
 
             return content;
@@ -85,15 +101,20 @@ public class OllamaService implements AiService {
     }
 
     @Override
-    public void streamCompletion(String model, List<Map<String, String>> messages, String persona, 
+    public void streamCompletion(String model, List<Map<String, String>> messages, String persona, List<String> memories, ResponseLanguage responseLanguage,
                                  Consumer<String> chunkConsumer, Runnable onComplete, Consumer<Throwable> errorConsumer) throws Exception {
         String effectiveModel = (model != null && !model.trim().isEmpty()) ? model.trim() : AppConfig.getOllamaDefaultModel();
-        List<Map<String, String>> preparedMessages = prepareMessagesWithPersona(messages, persona);
+        List<Map<String, String>> preparedMessages = prepareMessagesWithPersona(messages, persona, memories, responseLanguage);
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("model", effectiveModel);
         payload.put("messages", preparedMessages);
         payload.put("stream", true);
+
+        Map<String, Object> options = new LinkedHashMap<>();
+        options.put("temperature", 0.5);
+        options.put("top_p", 0.9);
+        payload.put("options", options);
 
         String jsonBody = SimpleJson.toJson(payload);
 
@@ -117,7 +138,16 @@ public class OllamaService implements AiService {
                                 try {
                                     Map<String, Object> chunkObj = SimpleJson.parseObject(line.trim());
                                     Map<String, Object> msg = SimpleJson.getMap(chunkObj, "message");
-                                    String text = SimpleJson.getString(msg, "content", "");
+                                    String text = "";
+                                    if (msg != null) {
+                                        text = SimpleJson.getString(msg, "content", "");
+                                    }
+                                    if (text.isEmpty()) {
+                                        text = SimpleJson.getString(chunkObj, "response", "");
+                                    }
+                                    if (text.isEmpty()) {
+                                        text = SimpleJson.getString(chunkObj, "content", "");
+                                    }
                                     if (!text.isEmpty()) {
                                         chunkConsumer.accept(text);
                                     }
@@ -184,11 +214,11 @@ public class OllamaService implements AiService {
         return AppConfig.getOllamaDefaultModel();
     }
 
-    private List<Map<String, String>> prepareMessagesWithPersona(List<Map<String, String>> messages, String persona) {
+    private List<Map<String, String>> prepareMessagesWithPersona(List<Map<String, String>> messages, String persona, List<String> memories, ResponseLanguage responseLanguage) {
         List<Map<String, String>> result = new ArrayList<>();
-        String systemPrompt = PersonaPrompts.getPrompt(persona);
+        String systemPrompt = PersonaPrompts.getPromptWithMemory(persona, memories, responseLanguage);
 
-        // Prepend system persona directive
+        // Prepend system persona directive with personal memory
         Map<String, String> systemMsg = new LinkedHashMap<>();
         systemMsg.put("role", "system");
         systemMsg.put("content", systemPrompt);

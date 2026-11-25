@@ -38,9 +38,10 @@ public class NexoraHttpServer {
 
         // Register API and Static File routes
         server.createContext("/api/chat", new ChatController(rateLimiter));
-        server.createContext("/api/models", new ModelsController());
+        server.createContext("/api/models", new ModelManagementController());
         server.createContext("/api/health", new HealthController(startTimeMillis));
         server.createContext("/api/config", new ConfigController());
+        server.createContext("/api/memory", new MemoryController(rateLimiter));
 
         // Catch-all route serves frontend static assets from configured frontend directory
         server.createContext("/", new StaticFileHandler(AppConfig.getFrontendDir()));

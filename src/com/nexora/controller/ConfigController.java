@@ -44,6 +44,7 @@ public class ConfigController extends BaseController {
         configData.put("default_model", aiService.getDefaultModel());
         configData.put("personas", List.of("general", "coding", "writing", "learning"));
         configData.put("rate_limit_per_minute", AppConfig.getRateLimitPerMinute());
+        configData.put("hasOpenRouterApiKey", AppConfig.hasOpenRouterApiKey());
 
         sendJsonResponse(exchange, 200, configData);
     }

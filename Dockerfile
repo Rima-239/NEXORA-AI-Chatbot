@@ -33,8 +33,8 @@ COPY --from=builder /build/bin /app/bin
 # Copy frontend web application and PWA assets
 COPY frontend /app/frontend
 
-# Set ownership to unprivileged user
-RUN chown -R nexora:nexora /app
+# Create persistent memory storage directory and set ownership
+RUN mkdir -p /app/data/memories && chown -R nexora:nexora /app
 
 USER nexora
 
@@ -42,8 +42,9 @@ USER nexora
 ENV PORT=8080 \
     APP_MODE=PUBLIC \
     FRONTEND_DIR=/app/frontend \
+    MEMORY_DIR=/app/data/memories \
     OPENROUTER_BASE_URL=https://openrouter.ai/api/v1 \
-    OPENROUTER_DEFAULT_MODEL=meta-llama/llama-3.2-3b-instruct:free \
+    OPENROUTER_DEFAULT_MODEL=openrouter/free \
     RATE_LIMIT_PER_MINUTE=30 \
     MAX_REQUEST_SIZE_BYTES=1048576 \
     REQUEST_TIMEOUT_SECONDS=180
@@ -55,5 +56,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:${PORT:-8080}/api/health || exit 1
 
-# Launch NEXORA with Java 21 Virtual Threads
-ENTRYPOINT ["java", "-cp", "/app/bin", "com.nexora.Main"]
+# Launch NEXORA with Java 21 Container-aware JVM memory controls and Virtual Threads
+ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", "-cp", "/app/bin", "com.nexora.Main"]
