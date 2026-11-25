@@ -82,9 +82,13 @@ public class AppConfig {
         OPENROUTER_API_KEY = (envApiKey != null) ? envApiKey.trim() : "";
 
         String envOpenRouterModel = getEnvOrDot("OPENROUTER_DEFAULT_MODEL", dotEnv);
-        OPENROUTER_DEFAULT_MODEL = (envOpenRouterModel != null && !envOpenRouterModel.trim().isEmpty())
-            ? envOpenRouterModel.trim()
-            : "openrouter/free";
+        if (APP_MODE == Mode.PUBLIC) {
+            OPENROUTER_DEFAULT_MODEL = "openrouter/free";
+        } else {
+            OPENROUTER_DEFAULT_MODEL = (envOpenRouterModel != null && !envOpenRouterModel.trim().isEmpty() && !envOpenRouterModel.contains("llama-3.2-3b"))
+                ? envOpenRouterModel.trim()
+                : "openrouter/free";
+        }
 
         // Security & Rate Limiting
         RATE_LIMIT_PER_MINUTE = parsePositiveInt(getEnvOrDot("RATE_LIMIT_PER_MINUTE", dotEnv), 30);

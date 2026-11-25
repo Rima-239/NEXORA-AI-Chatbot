@@ -83,20 +83,30 @@ public class OpenRouterService implements AiService {
             int statusCode = response.statusCode();
             String responseBody = response.body();
 
-            if (statusCode == 401) {
-                throw new IOException("OpenRouter Authentication Failed: The configured OPENROUTER_API_KEY is invalid or expired.");
-            } else if (statusCode == 429) {
-                throw new IOException("OpenRouter Rate Limit Exceeded: Free tier rate limit or quota has been reached for " + effectiveModel + ". Please switch to 'openrouter/free' (Auto-Router) or a local Ollama model.");
-            } else if (statusCode == 502 || statusCode == 503 || statusCode == 504) {
-                throw new IOException("OpenRouter Service Unavailable: The upstream cloud provider is temporarily unreachable (HTTP " + statusCode + "). Please switch to a local Ollama model.");
-            } else if (statusCode != 200) {
+            if (statusCode != 200) {
                 Map<String, Object> errorMap = tryParseJson(responseBody);
                 Map<String, Object> errInner = SimpleJson.getMap(errorMap, "error");
-                String msg = SimpleJson.getString(errInner, "message", "HTTP error " + statusCode);
-                if (statusCode == 404 || msg.contains("no longer available") || msg.contains("no provider serves this model")) {
-                    throw new IOException("OpenRouter Model Unavailable: " + msg + " Switch to 'openrouter/free' for automatic free routing.");
+                String providerMsg = (errInner != null) ? SimpleJson.getString(errInner, "message", "").trim() : "";
+
+                if (statusCode == 401) {
+                    String detail = !providerMsg.isEmpty() ? ": " + providerMsg : ". Please verify OPENROUTER_API_KEY in server configuration.";
+                    throw new IOException("OpenRouter Authentication Failed (HTTP 401)" + detail);
+                } else if (statusCode == 429) {
+                    String detail = !providerMsg.isEmpty() ? ": " + providerMsg : ". Free tier rate limit reached. Please wait a moment before sending another message.";
+                    throw new IOException("OpenRouter Rate Limit Exceeded (HTTP 429)" + detail);
+                } else if (statusCode == 402) {
+                    String detail = !providerMsg.isEmpty() ? ": " + providerMsg : ". Free tier credit quota reached. Please wait for quota refresh or use your own API key in Settings.";
+                    throw new IOException("OpenRouter Quota Exhausted (HTTP 402)" + detail);
+                } else if (statusCode == 502 || statusCode == 503 || statusCode == 504) {
+                    String detail = !providerMsg.isEmpty() ? ": " + providerMsg : ". Upstream model provider is temporarily unavailable. Please try again shortly.";
+                    throw new IOException("OpenRouter Service Unavailable (HTTP " + statusCode + ")" + detail);
+                } else if (statusCode == 404 || providerMsg.contains("no longer available") || providerMsg.contains("no provider serves this model")) {
+                    String detail = !providerMsg.isEmpty() ? ": " + providerMsg : ". Model '" + effectiveModel + "' is not currently available.";
+                    throw new IOException("OpenRouter Model Unavailable (HTTP " + statusCode + ")" + detail);
+                } else {
+                    String detail = !providerMsg.isEmpty() ? ": " + providerMsg : " (HTTP " + statusCode + ")";
+                    throw new IOException("OpenRouter Provider Error" + detail);
                 }
-                throw new IOException("OpenRouter Provider Error: " + msg);
             }
 
             Map<String, Object> responseData = SimpleJson.parseObject(responseBody);

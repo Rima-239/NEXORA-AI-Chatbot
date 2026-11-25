@@ -580,7 +580,23 @@ public class ModelManagementController extends BaseController {
         ModelSettings settings = modelManager.getSettings();
         Map<String, Object> res = new LinkedHashMap<>();
         res.put("success", true);
-        res.put("settings", settings.toMap());
+        Map<String, Object> settingsMap = settings.toMap();
+        if (AppConfig.isPublicMode()) {
+            settingsMap.put("defaultProvider", "PUBLIC");
+            settingsMap.put("defaultCloudModel", "openrouter/free");
+            settingsMap.remove("defaultLocalModel");
+            List<String> favs = new ArrayList<>();
+            for (String f : settings.getFavorites()) {
+                if (!f.startsWith("qwen") && !f.contains("llama") && !f.contains("mistral")) {
+                    favs.add(f);
+                }
+            }
+            if (favs.isEmpty()) {
+                favs.add("openrouter/free");
+            }
+            settingsMap.put("favorites", favs);
+        }
+        res.put("settings", settingsMap);
         sendJsonResponse(exchange, 200, res);
     }
 

@@ -195,9 +195,17 @@ async function initBackendConnection() {
 
                 if (state.providerInfo.mode === 'PUBLIC') {
                     state.selectedProvider = 'PUBLIC';
-                    if (!state.selectedModel || state.selectedModel.startsWith('qwen2.5')) {
-                        state.selectedModel = configData.default_model || 'openrouter/free';
-                    }
+                    state.selectedModel = 'openrouter/free';
+                    localStorage.setItem(STORAGE_KEYS.MODEL, 'openrouter/free');
+
+                    // Migrate all existing chats in state to PUBLIC & openrouter/free
+                    state.chats.forEach(c => {
+                        if (c.provider === 'LOCAL' || !c.model || c.model.startsWith('qwen2.5')) {
+                            c.provider = 'PUBLIC';
+                            c.model = 'openrouter/free';
+                        }
+                    });
+                    saveChats();
                     applyPublicModeUI();
                 } else {
                     if (!state.selectedModel && configData.default_model) {
@@ -239,6 +247,9 @@ function applyPublicModeUI() {
     const localTabBtn = document.querySelector('.mc-tab-btn[data-tab="installed"]');
     if (localTabBtn) {
         localTabBtn.style.display = 'none';
+        if (localTabBtn.classList.contains('active')) {
+            switchModelCenterTab('catalog');
+        }
     }
 
     // 2. Hide local provider button in Section 1
@@ -251,17 +262,40 @@ function applyPublicModeUI() {
         btnPublic.classList.add('active');
     }
 
-    // 3. Update footer badge
+    // 3. Disable LOCAL option in Settings Provider dropdown
+    const settingsProviderSelect = document.getElementById('mcSettingsDefaultProvider');
+    if (settingsProviderSelect) {
+        const localOpt = settingsProviderSelect.querySelector('option[value="LOCAL"]');
+        if (localOpt) localOpt.disabled = true;
+        settingsProviderSelect.value = 'PUBLIC';
+    }
+
+    // 4. Update Ollama connection status indicator in Model Center
+    const ollamaText = document.getElementById('mcOllamaStatusText');
+    const ollamaDot = document.getElementById('mcOllamaDot');
+    if (ollamaText) ollamaText.textContent = 'Disabled in Public Cloud';
+    if (ollamaDot) ollamaDot.className = 'status-dot';
+
+    // 5. Update footer badge
     const footerMeta = document.querySelector('.composer-meta');
     if (footerMeta) {
         footerMeta.innerHTML = 'NEXORA 1.0 • Core Java 21 Cloud Engine • Private Client Storage • <span style="color:var(--accent-cyan);">Public Cloud Mode</span>';
     }
 
-    // 4. Update sidebar status text
+    // 6. Update sidebar status text
     const statusText = document.getElementById('sidebarStatusText');
     if (statusText) {
         statusText.textContent = 'Cloud AI (OpenRouter) • Core Java 21';
     }
+    const systemStatusText = document.getElementById('systemStatusText');
+    if (systemStatusText) {
+        systemStatusText.textContent = 'OpenRouter (Public Cloud) · Core Java 21';
+    }
+
+    // 7. Update header model button
+    state.selectedProvider = 'PUBLIC';
+    state.selectedModel = 'openrouter/free';
+    updateHeaderModelBadge();
 }
 
 function initPWA() {
@@ -327,10 +361,13 @@ function createNewChat(shouldRender = true) {
         return current;
     }
 
-    const defProvider = state.modelSettings?.defaultProvider || state.selectedProvider || 'LOCAL';
-    const defModel = defProvider === 'PUBLIC'
-        ? (state.modelSettings?.defaultCloudModel || 'openrouter/free')
-        : (state.modelSettings?.defaultLocalModel || 'qwen2.5:7b');
+    const isPublic = (state.providerInfo.mode === 'PUBLIC');
+    const defProvider = isPublic ? 'PUBLIC' : (state.modelSettings?.defaultProvider || state.selectedProvider || 'LOCAL');
+    const defModel = isPublic
+        ? 'openrouter/free'
+        : (defProvider === 'PUBLIC'
+            ? (state.modelSettings?.defaultCloudModel || 'openrouter/free')
+            : (state.modelSettings?.defaultLocalModel || 'qwen2.5:7b'));
 
     const newChat = {
         id: 'chat_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
@@ -674,8 +711,12 @@ async function handleSendMessage() {
                 message: rawText,
                 messages: recentMessages,
                 persona: state.persona,
-                model: state.selectedModel || current.model || (state.providerInfo.mode === 'PUBLIC' ? 'openrouter/free' : 'qwen2.5:7b'),
-                provider: state.selectedProvider || current.provider || (state.providerInfo.mode === 'PUBLIC' ? 'PUBLIC' : 'LOCAL'),
+                model: (state.providerInfo.mode === 'PUBLIC')
+                    ? ((state.selectedModel && state.selectedModel.includes('/')) ? state.selectedModel : 'openrouter/free')
+                    : (state.selectedModel || current.model || 'qwen2.5:7b'),
+                provider: (state.providerInfo.mode === 'PUBLIC')
+                    ? 'PUBLIC'
+                    : (state.selectedProvider || current.provider || 'LOCAL'),
                 stream: true,
                 userId: getUserId(),
                 memories: state.memories ? state.memories.map(m => m.text) : [],
@@ -801,9 +842,8 @@ async function handleSendMessage() {
 
     } catch (err) {
         hideTypingIndicator();
-        if (aiBubbleElement && accumulatedText.trim()) {
-            finalizeAssistantMessage(current, accumulatedText, aiBubbleElement);
-        } else if (aiBubbleElement) {
+        // Ensure failed provider requests are NEVER reported or recorded as successful responses
+        if (aiBubbleElement) {
             aiBubbleElement.remove();
         }
         showErrorBubble(err.message || 'An unexpected connection error occurred.', true);
@@ -814,6 +854,7 @@ async function handleSendMessage() {
 }
 
 function finalizeAssistantMessage(chat, fullText, existingBubbleElement) {
+    consecutiveRateLimitRetries = 0;
     const aiTimestamp = Date.now();
     chat.messages.push({
         role: 'assistant',
@@ -1215,10 +1256,61 @@ function hideTypingIndicator() {
     if (el) el.remove();
 }
 
+let consecutiveRateLimitRetries = 0;
+
 function showErrorBubble(errorMessage, canRetry = true) {
-    const isRateLimit = errorMessage && (errorMessage.includes('Rate Limit') || errorMessage.includes('quota') || errorMessage.includes('Quota'));
+    const isRateLimit = errorMessage && (errorMessage.includes('429') || errorMessage.includes('Rate Limit') || errorMessage.includes('rate limit'));
+    const isQuota = errorMessage && (errorMessage.includes('402') || errorMessage.includes('Quota') || errorMessage.includes('quota'));
+    const isUnavailable = errorMessage && (errorMessage.includes('502') || errorMessage.includes('503') || errorMessage.includes('504') || errorMessage.includes('Service Unavailable') || errorMessage.includes('Temporarily Unavailable'));
     const isModelUnavailable = errorMessage && (errorMessage.includes('no longer available') || errorMessage.includes('no provider serves') || errorMessage.includes('Model Unavailable'));
     const isOpenRouterError = errorMessage && (errorMessage.includes('OpenRouter') || errorMessage.includes('OPENROUTER_API_KEY'));
+
+    // Check environment mode and active model
+    const isAlreadyOpenRouterFree = (state.selectedModel === 'openrouter/free');
+    const isPublicMode = (state.providerInfo.mode === 'PUBLIC');
+
+    // Title mapping based on actual provider status
+    let errorTitle = 'Request Issue';
+    if (isRateLimit) {
+        errorTitle = 'OpenRouter Free Tier Rate Limit (HTTP 429)';
+    } else if (isQuota) {
+        errorTitle = 'OpenRouter Free Tier Quota Exhausted (HTTP 402)';
+    } else if (isUnavailable) {
+        errorTitle = 'Cloud AI Service Temporarily Busy';
+    } else if (isModelUnavailable) {
+        errorTitle = 'Cloud Model Unavailable';
+    } else if (errorMessage && errorMessage.includes('401')) {
+        errorTitle = 'Authentication Error (HTTP 401)';
+    }
+
+    // Contextual explanatory advice
+    let adviceHtml = '';
+    if (isRateLimit) {
+        adviceHtml = `
+            <div style="font-size:12px; color:var(--text-secondary); margin-top:5px; line-height:1.4;">
+                ℹ️ OpenRouter free-tier concurrent request slots are currently full. Please wait a few seconds before retrying.
+            </div>
+        `;
+    } else if (isQuota) {
+        adviceHtml = `
+            <div style="font-size:12px; color:var(--text-secondary); margin-top:5px; line-height:1.4;">
+                ℹ️ The daily free credit allocation has been reached. Please wait for the daily quota reset or provide a custom API key in Settings.
+            </div>
+        `;
+    } else if (isUnavailable) {
+        adviceHtml = `
+            <div style="font-size:12px; color:var(--text-secondary); margin-top:5px; line-height:1.4;">
+                ℹ️ The upstream model provider is experiencing temporary downtime. Please try again shortly.
+            </div>
+        `;
+    }
+
+    // Dynamic action button conditions:
+    // 1. Only suggest switching to OpenRouter Free if NOT already on openrouter/free
+    const showSwitchToRouterBtn = !isAlreadyOpenRouterFree && (isModelUnavailable || isRateLimit || isQuota || (isOpenRouterError && !errorMessage.includes('API key')));
+
+    // 2. ONLY offer switching to local Ollama in LOCAL mode
+    const showSwitchToLocalBtn = !isPublicMode && isOpenRouterError;
 
     const card = document.createElement('div');
     card.className = 'error-card-bubble';
@@ -1231,29 +1323,25 @@ function showErrorBubble(errorMessage, canRetry = true) {
             </svg>
         </div>
         <div class="error-card-body">
-            <div class="error-card-title">${isRateLimit ? 'OpenRouter Free Tier Quota Reached' : 'Request Issue'}</div>
+            <div class="error-card-title">${escapeHtml(errorTitle)}</div>
             <div>${escapeHtml(errorMessage)}</div>
-            ${isRateLimit ? `
-                <div style="font-size:12px; color:var(--text-secondary); margin-top:5px; line-height:1.4;">
-                    ℹ️ OpenRouter free-tier slots for this specific model are temporarily exhausted. Instead of repeatedly retrying the same rate-limited model, switch to <strong>openrouter/free</strong> (Auto-Router) or a local Ollama model below.
-                </div>
-            ` : ''}
+            ${adviceHtml}
             <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
                 ${canRetry ? `
-                    <button class="btn-error-retry" onclick="retryLastFailedMessage()" title="${isRateLimit ? 'Retrying the same model may continue to hit rate limits' : 'Retry sending prompt'}">
+                    <button class="btn-error-retry" id="btnRetryFailedPrompt" onclick="triggerSafePromptRetry(this)" title="Retry sending prompt">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="23 4 23 10 17 10"></polyline>
                             <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
                         </svg>
-                        Retry Prompt
+                        <span>Retry Prompt</span>
                     </button>
                 ` : ''}
-                ${(isModelUnavailable || isRateLimit || (isOpenRouterError && !errorMessage.includes('API key'))) ? `
+                ${showSwitchToRouterBtn ? `
                     <button class="btn-error-retry" onclick="switchToOpenRouterFreeAndRetry();" style="background:rgba(168,85,247,0.18); color:var(--accent-purple); border-color:rgba(168,85,247,0.4);" title="Switch active model to openrouter/free (Dynamic Free Router) and retry immediately">
                         🔄 Switch to OpenRouter Free &amp; Retry
                     </button>
                 ` : ''}
-                ${isOpenRouterError ? `
+                ${showSwitchToLocalBtn ? `
                     <button class="btn-error-retry" onclick="selectQuickModel('LOCAL', 'qwen2.5:3b'); retryLastFailedMessage();" style="background:rgba(6,182,212,0.15); color:var(--accent-cyan); border-color:rgba(6,182,212,0.35);" title="Switch active model to local qwen2.5:3b and retry immediately">
                         ⚡ Switch to Local Model (qwen2.5:3b) &amp; Retry
                     </button>
@@ -1266,6 +1354,35 @@ function showErrorBubble(errorMessage, canRetry = true) {
         container.appendChild(card);
         scrollToBottom();
     }
+}
+
+function triggerSafePromptRetry(btn) {
+    if (state.isGenerating) return;
+
+    if (consecutiveRateLimitRetries >= 3) {
+        showToast('⚠️ Consecutive retries paused. Please wait 15 seconds before trying again.', 'warning');
+        if (btn) {
+            btn.disabled = true;
+            let countdown = 15;
+            const label = btn.querySelector('span');
+            const timer = setInterval(() => {
+                countdown--;
+                if (label) label.textContent = `Wait (${countdown}s)`;
+                if (countdown <= 0) {
+                    clearInterval(timer);
+                    consecutiveRateLimitRetries = 0;
+                    if (btn) {
+                        btn.disabled = false;
+                        if (label) label.textContent = 'Retry Prompt';
+                    }
+                }
+            }, 1000);
+        }
+        return;
+    }
+
+    consecutiveRateLimitRetries++;
+    retryLastFailedMessage();
 }
 
 function switchToOpenRouterFreeAndRetry() {
@@ -2833,19 +2950,50 @@ function updateModelSelectDropdowns() {
     const currentChatSelect = document.getElementById('mcCurrentChatModelSelect');
     const profModelSelect = document.getElementById('profInputModel');
 
-    const options = (state.installedModels && state.installedModels.length > 0)
-        ? state.installedModels.map(m => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.id)} (${m.parameterSize || 'Local'})</option>`).join('')
-        : '<option value="qwen2.5:7b">qwen2.5:7b</option><option value="qwen2.5:3b">qwen2.5:3b</option>';
+    const isPublic = (state.providerInfo.mode === 'PUBLIC');
+
+    let chatModelOptions = '';
+    if (isPublic) {
+        chatModelOptions = '<option value="openrouter/free">openrouter/free (Auto-Router)</option>';
+        if (state.cloudCatalog && state.cloudCatalog.length > 0) {
+            const extra = state.cloudCatalog
+                .filter(m => m.id !== 'openrouter/free' && (m.isFree || m.id.endsWith(':free')))
+                .map(m => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.name || m.id)} (Free)</option>`)
+                .join('');
+            chatModelOptions += extra;
+        }
+    } else {
+        const localOpts = (state.installedModels && state.installedModels.length > 0)
+            ? state.installedModels.map(m => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.id)} (${m.parameterSize || 'Local'})</option>`).join('')
+            : '<option value="qwen2.5:7b">qwen2.5:7b (7B)</option><option value="qwen2.5:3b">qwen2.5:3b (3B)</option>';
+        chatModelOptions = `
+            <optgroup label="Installed Local Models">
+                ${localOpts}
+            </optgroup>
+            <optgroup label="Cloud Free Models">
+                <option value="openrouter/free">openrouter/free (Auto-Router)</option>
+            </optgroup>
+        `;
+    }
 
     if (localSelect) {
-        localSelect.innerHTML = options;
-        if (state.modelSettings?.defaultLocalModel) {
-            localSelect.value = state.modelSettings.defaultLocalModel;
+        if (isPublic) {
+            localSelect.innerHTML = '<option value="">(Disabled in Public Mode)</option>';
+            localSelect.disabled = true;
+        } else {
+            const localOnlyOpts = (state.installedModels && state.installedModels.length > 0)
+                ? state.installedModels.map(m => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.id)} (${m.parameterSize || 'Local'})</option>`).join('')
+                : '<option value="qwen2.5:7b">qwen2.5:7b (7B)</option><option value="qwen2.5:3b">qwen2.5:3b (3B)</option>';
+            localSelect.innerHTML = localOnlyOpts;
+            localSelect.disabled = false;
+            if (state.modelSettings?.defaultLocalModel) {
+                localSelect.value = state.modelSettings.defaultLocalModel;
+            }
         }
     }
 
     if (currentChatSelect) {
-        currentChatSelect.innerHTML = options;
+        currentChatSelect.innerHTML = chatModelOptions;
         const currentChat = getActiveChat();
         if (currentChat && currentChat.model) {
             currentChatSelect.value = currentChat.model;
@@ -2855,7 +3003,7 @@ function updateModelSelectDropdowns() {
     }
 
     if (profModelSelect) {
-        profModelSelect.innerHTML = options;
+        profModelSelect.innerHTML = chatModelOptions;
     }
 }
 

@@ -37,6 +37,9 @@ public class OllamaService implements AiService {
 
     @Override
     public String generateCompletion(String model, List<Map<String, String>> messages, String persona, List<String> memories, ResponseLanguage responseLanguage) throws Exception {
+        if (AppConfig.isPublicMode()) {
+            throw new IllegalStateException("Local Ollama service is disabled in PUBLIC mode. Please use cloud models.");
+        }
         String effectiveModel = (model != null && !model.trim().isEmpty()) ? model.trim() : AppConfig.getOllamaDefaultModel();
         List<Map<String, String>> preparedMessages = prepareMessagesWithPersona(messages, persona, memories, responseLanguage);
 
@@ -103,6 +106,9 @@ public class OllamaService implements AiService {
     @Override
     public void streamCompletion(String model, List<Map<String, String>> messages, String persona, List<String> memories, ResponseLanguage responseLanguage,
                                  Consumer<String> chunkConsumer, Runnable onComplete, Consumer<Throwable> errorConsumer) throws Exception {
+        if (AppConfig.isPublicMode()) {
+            throw new IllegalStateException("Local Ollama service is disabled in PUBLIC mode. Please use cloud models.");
+        }
         String effectiveModel = (model != null && !model.trim().isEmpty()) ? model.trim() : AppConfig.getOllamaDefaultModel();
         List<Map<String, String>> preparedMessages = prepareMessagesWithPersona(messages, persona, memories, responseLanguage);
 
@@ -172,6 +178,9 @@ public class OllamaService implements AiService {
 
     @Override
     public List<String> getAvailableModels() throws Exception {
+        if (AppConfig.isPublicMode()) {
+            return Collections.emptyList();
+        }
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(AppConfig.getOllamaBaseUrl() + "/api/tags"))
                 .header("Accept", "application/json")

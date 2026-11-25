@@ -33,9 +33,13 @@ public class AiServiceFactory {
 
     /**
      * Resolves the AI service dynamically based on the requested provider ("LOCAL", "OLLAMA", "PUBLIC", "OPENROUTER").
+     * In PUBLIC mode, ALWAYS returns the public cloud service to prevent any local connections.
      * Falls back to the default service if provider is null or unrecognized.
      */
     public static AiService getServiceForProvider(String providerName) {
+        if (AppConfig.isPublicMode()) {
+            return getPublicService();
+        }
         if (providerName != null && !providerName.trim().isEmpty()) {
             String p = providerName.trim().toUpperCase();
             if (p.contains("PUBLIC") || p.contains("OPENROUTER") || p.contains("CLOUD")) {
@@ -49,6 +53,9 @@ public class AiServiceFactory {
     }
 
     public static OllamaService getLocalService() {
+        if (AppConfig.isPublicMode()) {
+            throw new IllegalStateException("Local Ollama service cannot be initialized in PUBLIC mode.");
+        }
         if (localService == null) {
             synchronized (AiServiceFactory.class) {
                 if (localService == null) {

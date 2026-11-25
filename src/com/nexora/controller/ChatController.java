@@ -87,6 +87,22 @@ public class ChatController extends BaseController {
         String persona = SimpleJson.getString(requestData, "persona", "general");
         boolean isStream = SimpleJson.getBoolean(requestData, "stream", false);
 
+        // Strict PUBLIC mode boundary: block any attempt to invoke local Ollama or specify local models
+        if (AppConfig.isPublicMode()) {
+            if (requestedProvider != null && (requestedProvider.equalsIgnoreCase("LOCAL") || requestedProvider.equalsIgnoreCase("OLLAMA"))) {
+                sendError(exchange, 400, "Provider 'LOCAL' (Ollama) is disabled in PUBLIC cloud mode. Please use cloud models ('openrouter/free').");
+                return;
+            }
+            if (requestedModel != null && !requestedModel.trim().isEmpty()) {
+                String mLower = requestedModel.trim().toLowerCase();
+                if (mLower.startsWith("qwen") || mLower.contains("llama3") || mLower.contains("mistral") 
+                        || (!mLower.contains("/") && !mLower.equals("openrouter/free"))) {
+                    sendError(exchange, 400, "Model '" + requestedModel + "' is a local Ollama model and is not available in PUBLIC cloud mode. Please select 'openrouter/free'.");
+                    return;
+                }
+            }
+        }
+
         // Optional BYOK API Key for OpenRouter
         String clientApiKey = exchange.getRequestHeaders().getFirst("X-OpenRouter-Key");
         if (clientApiKey == null || clientApiKey.trim().isEmpty()) {
@@ -367,7 +383,10 @@ public class ChatController extends BaseController {
             }
 
             if (!hasError.get() && tokenCount.get() == 0) {
-                String emptyMsg = "data: {\"error\":\"The AI model returned zero tokens. Please check that the selected model is running properly in Ollama.\"}\n\n";
+                String modelContext = AppConfig.isPublicMode() 
+                    ? "Please try again shortly." 
+                    : "Please check that the selected model is running properly in Ollama.";
+                String emptyMsg = "data: {\"error\":\"The AI model returned zero tokens. " + modelContext + "\"}\n\n";
                 os.write(emptyMsg.getBytes(StandardCharsets.UTF_8));
                 os.flush();
                 hasError.set(true);
@@ -389,30 +408,30 @@ public class ChatController extends BaseController {
                         "",
                         System.currentTimeMillis()
                 ));
+
+                // Send stream metadata only on successful completion
+                Map<String, Object> metaData = new LinkedHashMap<>();
+                metaData.put("memorySaved", extractedMemory != null);
+                if (extractedMemory != null) {
+                    metaData.put("extractedMemory", extractedMemory.toMap());
+                }
+                metaData.put("memoriesUsed", memories);
+                metaData.put("language", responseLanguage.getCode());
+                metaData.put("model", effectiveModel);
+                metaData.put("provider", aiService.getProviderName());
+                metaData.put("durationMs", durationMs);
+                metaData.put("ttftMs", ttftMs);
+                metaData.put("tokenCount", tokenCount.get());
+                metaData.put("tokensPerSec", Math.round(tokensPerSec * 10.0) / 10.0);
+
+                String metaMsg = "data: " + SimpleJson.toJson(metaData) + "\n\n";
+                os.write(metaMsg.getBytes(StandardCharsets.UTF_8));
+                os.flush();
+
+                // Signal normal stream termination
+                os.write("data: [DONE]\n\n".getBytes(StandardCharsets.UTF_8));
+                os.flush();
             }
-
-            // Send stream metadata (memories used, language, model, performance metrics)
-            Map<String, Object> metaData = new LinkedHashMap<>();
-            metaData.put("memorySaved", extractedMemory != null);
-            if (extractedMemory != null) {
-                metaData.put("extractedMemory", extractedMemory.toMap());
-            }
-            metaData.put("memoriesUsed", memories);
-            metaData.put("language", responseLanguage.getCode());
-            metaData.put("model", effectiveModel);
-            metaData.put("provider", aiService.getProviderName());
-            metaData.put("durationMs", durationMs);
-            metaData.put("ttftMs", ttftMs);
-            metaData.put("tokenCount", tokenCount.get());
-            metaData.put("tokensPerSec", Math.round(tokensPerSec * 10.0) / 10.0);
-
-            String metaMsg = "data: " + SimpleJson.toJson(metaData) + "\n\n";
-            os.write(metaMsg.getBytes(StandardCharsets.UTF_8));
-            os.flush();
-
-            // Signal stream termination
-            os.write("data: [DONE]\n\n".getBytes(StandardCharsets.UTF_8));
-            os.flush();
 
         } catch (Exception e) {
             try {
